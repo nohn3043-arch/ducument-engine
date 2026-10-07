@@ -254,15 +254,142 @@ class GlobalState:
 
 # ==================== 核心组件（已优化）====================
 class NarrativeStripper:
-    @staticmethod
-    def strip(text: str) -> Dict[str, Any]:
-        stripped = re.sub(r"[，。！？；：\"\"''()（）【】]", "", text)
-        stripped = re.sub(r"[的地得]", "", stripped)
+    """叙事剥离（上游）：把散文文本转成可供因果引擎消费的最小事件序列。
+
+    修正两处历史缺陷（旧版长期为死代码，零调用）：
+      1) 旧版用字符类 [的地得] 全局删除，会破坏「目的/得到/地道/值得」等实义词；
+         现改为不删实义字，仅剥离标点与空白。
+      2) 旧版动作词用字符类 [打跑走看…] 逐字匹配，「拉黑/离开/难过」被拆成单字；
+         现改为按显式词表做最长匹配（覆盖现代叙事 + 古白话）。
+    """
+
+    # 标点/空白（全角 + 半角 + 常见引号、书名号）
+    _PUNCT_RE = re.compile(
+        r"[，。！？；：、,.!?;:()（）【】\[\]《》〈〉“”‘’\"'…—\s]+"
+    )
+
+    # 动作词表：长词在前，保证最长匹配
+    _ACTION_WORDS = (
+        "留在原地",
+        "追上去",
+        "拉黑",
+        "离开",
+        "生气",
+        "难过",
+        "说道",
+        "笑道",
+        "哭道",
+        "怒道",
+        "喝道",
+        "骂道",
+        "叹道",
+        "看见",
+        "听到",
+        "听见",
+        "追赶",
+        "走进",
+        "走出",
+        "走来",
+        "走去",
+        "起身",
+        "落座",
+        "拱手",
+        "作揖",
+        "下拜",
+        "拜见",
+        "拍案",
+        "回头",
+        "转身",
+        "开口",
+        "沉默",
+        "点头",
+        "摇头",
+        "打",
+        "跑",
+        "走",
+        "看",
+        "说",
+        "哭",
+        "笑",
+        "喊",
+        "叫",
+        "坐",
+        "立",
+        "站",
+        "跪",
+        "拜",
+        "喝",
+        "骂",
+        "叹",
+        "提",
+        "拿",
+        "取",
+        "放",
+        "掷",
+        "砍",
+        "杀",
+        "斗",
+        "战",
+        "退",
+        "进",
+        "追",
+        "寻",
+        "送",
+        "迎",
+        "辞",
+        "别",
+        "归",
+        "回",
+    )
+    _ACTION_RE = re.compile(
+        r"([\u4e00-\u9fa5]{1,4})(" + "|".join(map(re.escape, _ACTION_WORDS)) + r")"
+    )
+
+    @classmethod
+    def strip(cls, text: str) -> Dict[str, Any]:
+        """剥离标点/空白并抽出 (施动片段, 动作词) 候选；保留 raw_text 便于回溯。"""
+        stripped = cls._PUNCT_RE.sub("", text or "")
         stripped = re.sub(r"\s+", " ", stripped).strip()
-        actions = re.findall(
-            r"([\u4e00-\u9fa5]+)([打跑走看说哭笑哭生气难过拉黑离开留在])", stripped
-        )
+        actions = cls._ACTION_RE.findall(stripped)
         return {"raw_text": text, "stripped_text": stripped, "actions": actions}
+
+    @staticmethod
+    def _name_in(sent: str, names: Optional[Any]) -> str:
+        """在句中找第一个命中的已知角色名（供外部词表/姓名集注入）。找不到返回空串。"""
+        if not names:
+            return ""
+        for n in names:
+            if n and n in sent:
+                return n
+        return ""
+
+    @classmethod
+    def to_events(
+        cls, text: str, start_id: int = 0, names: Optional[Any] = None
+    ) -> List[Dict[str, Any]]:
+        """把一段散文按句切分，生成最小事件链：上一句=前提，本句=结论。
+
+        这是「上游空」的最小补齐点——让引擎无需外部抽取器即可直接消费原文。
+        角色名判定优先级：外部词表 names（如 prose_bridge.build_name_set 产出的姓名集）
+        → 内置 _extract_plausible_name（宁缺毋滥，认不出留空）。
+        """
+        if not text:
+            return []
+        sentences = [
+            s.strip() for s in re.split(r"(?<=[。！？!?；;…])", text) if s.strip()
+        ]
+        events: List[Dict[str, Any]] = []
+        for i, sent in enumerate(sentences):
+            char = cls._name_in(sent, names) or _extract_plausible_name(sent)
+            events.append(
+                {
+                    "id": f"E{start_id + i:03d}",
+                    "premise": sentences[i - 1] if i > 0 else "",
+                    "conclusion": sent,
+                    "character": char,
+                }
+            )
+        return events
 
 
 class ImplicitAssumptionDetector:
@@ -521,6 +648,23 @@ _NAME_PRONOUN_HEADS = (
     "她们",
     "它们",
 )
+# 古白话人称/指代扩展（防「某便道」「此人道」被当作角色名）
+_NAME_PRONOUN_HEADS = _NAME_PRONOUN_HEADS + (
+    "某",
+    "彼",
+    "此",
+    "俺",
+    "妾",
+    "奴",
+    "臣",
+    "朕",
+    "孤",
+    "寡人",
+    "尔等",
+    "汝等",
+    "我等",
+    "你等",
+)
 _NAME_VERB_HEADS = (
     "说",
     "道",
@@ -584,6 +728,53 @@ _NAME_VERB_HEADS = (
     "出门",
     "进屋",
 )
+# 古白话功能词/场景词开头（防「且请坐」「日天色」被当作角色名）
+_NAME_VERB_HEADS = _NAME_VERB_HEADS + (
+    "且",
+    "请",
+    "若",
+    "既",
+    "但",
+    "莫",
+    "休",
+    "须",
+    "待",
+    "不",
+    "无",
+    "有",
+    "日",
+    "月",
+    "天",
+    "地",
+    "风",
+    "雨",
+    "雪",
+    "云",
+    "却",
+    "遂",
+    "乃",
+    "便",
+    "即",
+    "又",
+    "也",
+    "都",
+    "只",
+    "就",
+    "正",
+    "先",
+    "忙",
+    "急",
+    "再",
+    "亦",
+    "皆",
+    "俱",
+    "莫",
+    "休",
+    "须",
+    "待",
+    "不",
+    "无",
+)
 _NAME_TAIL_NOISE = (
     "在",
     "去",
@@ -632,6 +823,96 @@ _NAME_TAIL_NOISE = (
     "发现",
     "感到",
     "知道",
+)
+# 古白话动作/副词残片（防「武松便」「李逵喝」落到候选名尾部）
+_NAME_TAIL_NOISE = _NAME_TAIL_NOISE + (
+    "便",
+    "即",
+    "遂",
+    "乃",
+    "却",
+    "又",
+    "也",
+    "都",
+    "只",
+    "方",
+    "才",
+    "就",
+    "正",
+    "先",
+    "忙",
+    "急",
+    "再",
+    "亦",
+    "皆",
+    "俱",
+    "喝",
+    "骂",
+    "笑",
+    "哭",
+    "怒",
+    "喜",
+    "叹",
+    "惊",
+    "惧",
+    "骇",
+    "慌",
+    "拜",
+    "揖",
+    "跪",
+    "禀",
+    "报",
+    "应",
+    "回",
+    "唤",
+    "劝",
+    "谏",
+    "扶",
+    "扯",
+    "拱",
+)
+# 「状态/副词 + 动词」整块残留（如「李逵大喝」「宋江大怒」「武松便道」）；整块剥除而非逐字
+_NAME_STATE_TAIL = (
+    "大喝道",
+    "大喜道",
+    "大怒道",
+    "大惊道",
+    "大喝",
+    "大怒",
+    "大喜",
+    "大惊",
+    "大笑",
+    "大哭",
+    "大骇",
+    "便道",
+    "即道",
+    "遂道",
+    "乃道",
+    "却道",
+    "又道",
+    "也道",
+    "都道",
+    "只道",
+    "方道",
+    "才道",
+    "正道",
+    "先道",
+    "忙道",
+    "急道",
+    "再道",
+    "亦道",
+    "皆道",
+    "俱道",
+    "应道",
+    "回道",
+    "喝道",
+    "骂道",
+    "笑道",
+    "哭道",
+    "怒道",
+    "叹道",
+    "问道",
+    "答道",
 )
 _NAME_FULL_NOISE = (
     "下雨",
@@ -703,6 +984,92 @@ _NAME_FULL_NOISE = (
     "自己",
     "彼此",
 )
+# 古白话/明清小说常见非人名主体（防「二人便道」「太尉道」被当作角色名）
+_NAME_FULL_NOISE = _NAME_FULL_NOISE + (
+    "二人",
+    "数人",
+    "诸人",
+    "众将",
+    "诸将",
+    "群臣",
+    "百官",
+    "好汉",
+    "军官",
+    "军士",
+    "喽啰",
+    "小喽啰",
+    "庄客",
+    "客商",
+    "百姓",
+    "左右",
+    "手下",
+    "小厮",
+    "丫鬟",
+    "婆子",
+    "妇人",
+    "女子",
+    "男子",
+    "老儿",
+    "后生",
+    "闲汉",
+    "泼皮",
+    "长老",
+    "道人",
+    "和尚",
+    "行者",
+    "太尉",
+    "提辖",
+    "押司",
+    "都头",
+    "教头",
+    "知寨",
+    "知县",
+    "知府",
+    "巡检",
+    "虞候",
+    "都监",
+    "统制",
+    "节级",
+    "差拨",
+    "头领",
+    "寨主",
+    "庄主",
+    "员外",
+    "相公",
+    "陛下",
+    "殿下",
+    "大人",
+    "师父",
+    "师兄",
+    "师弟",
+    "军师",
+    "先锋",
+    "天色",
+    "天气",
+    "日色",
+    "月色",
+    "夜色",
+)
+# 常见器物（防「桌子掀」「哨棒打」被当作角色名）
+_NAME_FULL_NOISE = _NAME_FULL_NOISE + (
+    "桌子",
+    "椅子",
+    "凳子",
+    "哨棒",
+    "禅杖",
+    "朴刀",
+    "腰刀",
+    "宝剑",
+    "弓箭",
+    "刀枪",
+    "银子",
+    "铜钱",
+    "酒杯",
+    "酒碗",
+    "茶碗",
+    "马匹",
+    "船只",
+)
 # 名字候选后允许紧跟的内容（动作/虚词/标点），防止把「林夏意识到」吞成「林夏意」
 _NAME_FOLLOW_RE = re.compile(
     r"([\u4e00-\u9fa5]{2,3}?)(?=(?:意识到|觉得|认为|坚持|决定|同意|梳理|评估|分析|理解|"
@@ -711,13 +1078,37 @@ _NAME_FOLLOW_RE = re.compile(
     r"醒来|出门|进屋|盘坐|走入|走进|站在|望着|听着|打量|伸手|握住|松开|深吸|叹息|"
     r"皱眉|轻笑|沉声|低声|高声|忽然|终于|缓缓|慢慢|渐渐|随即|径直|直接|继续|说|道|"
     r"问|喊|答|在|了|着|过|的|地|得|和|与|跟|闭关|修炼|炼化|突破|渡劫|入定|出关|"
-    r"运功|施法|掐诀|御剑|下山|云游|历练|顿悟|参悟|凝练|淬炼|召见|议事|禀报|，|。|；|！|？|：|,|;|!|\?|:))"
+    r"运功|施法|掐诀|御剑|下山|云游|历练|顿悟|参悟|凝练|淬炼|召见|议事|禀报|"
+    # —— 古白话（明清小说）动作/状态词（多字优先，避免「宋江大喜」吞成「宋江大」）——
+    r"大喝道|大喜道|大怒道|大惊道|喝道|骂道|笑道|哭道|怒道|叹道|回道|应道|禀道|报道|"
+    r"问道|答道|说罢|说完|大喜|大怒|大惊|大笑|大哭|拱手|作揖|下拜|拜见|相见|"
+    r"落座|拍案|拍手|按剑|拔刀|上马|下马|"
+    # —— 古白话连接/副词（「武松便走」「宋江又劝」）——
+    r"便|即|遂|乃|却|又|也|都|只|方|才|就|正|先|忙|急|再|亦|皆|俱|"
+    # —— 古白话单字动作词（保证「鲁智深提」切出 3 字名，而非「智深提」）——
+    r"提|拿|取|放|掷|砍|杀|斗|战|进|退|追|寻|送|迎|辞|别|归|回|坐|立|站|跪|走|跑|跳|"
+    r"喝|骂|笑|哭|怒|喊|叫|报|禀|应|唤|答|见|听|望|闻|吃|饮|斟|扯|推|扶|奔|逃|藏|躲|"
+    r"斩|射|劈|抽|拔|抬|扛|挑|背|抱|捧|递|接|抛|敲|拍|踢|踏|跨|迈|翻|滚|爬|攀|守|攻|"
+    r"拜|揖|拉|拽|揪|拴|缚|捆|撒|泼|扔|插|夺|抢|遣|差|领|率|引|随|护|押|"
+    # —— 称谓（「宋江哥哥」）与官职（「王进教头」）——
+    r"哥哥|兄弟|娘子|夫人|嫂嫂|婆婆|太尉|提辖|押司|都头|教头|知寨|知县|知府|"
+    r"巡检|虞候|都监|统制|节级|差拨|头领|寨主|庄主|员外|相公|陛下|殿下|大人|"
+    r"先生|师父|师兄|师弟|长老|道人|和尚|行者|军师|先锋|掌柜|"
+    r"，|。|；|！|？|：|,|;|!|\?|:))"
 )
 
 
 def _clean_name_candidate(cand: str) -> str:
-    """剥去候选名尾部的动词/虚词残片（如「林夏在」→「林夏」）。"""
+    """剥去候选名尾部的动词/虚词残片。
+
+    例：「林夏在」→「林夏」「李逵大喝」→「李逵」「武松便道」→「武松」。
+    先整块剥除「状态/副词+动词」短语，再逐字剥除尾部虚词。
+    """
     base = cand
+    for phrase in _NAME_STATE_TAIL:
+        if len(base) > len(phrase) and base.endswith(phrase):
+            base = base[: -len(phrase)]
+            break
     while len(base) > 1 and base.endswith(_NAME_TAIL_NOISE):
         base = base[:-1]
     return base
@@ -1930,6 +2321,39 @@ Output the revised passage only."""
         )
         return self.plan_chapter(chapter_id, title, [line])
 
+    def audit_prose(
+        self, text: str, use_llm: bool = True, names: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """上游审计入口：直接消费「原文散文」，走 叙事剥离 → 五步算子（+可选 LLM 深诊）。
+
+        与 audit_story(outline=...) 的分工：后者要求「A -> B」箭头式大纲；
+        本方法消费自然散文（小说原文），是对齐「上游空」缺口的最小可用路径。
+        names：可选已知角色姓名集（如 prose_bridge.build_name_set 的输出），
+               注入后角色归属走词表，准确率显著高于内置正则。
+        返回链 + 脆弱性判决 + 责任锚 + 重建建议（字段与 audit_story 的 causal 层一致）。
+        """
+        chain = self.sp_engine.narrative_stripping(text, names=names)
+        self.sp_engine.implicit_assumption_probe(chain)
+        hedge = self.sp_engine.vulnerability_hedge(chain)
+        anchor = self.sp_engine.responsibility_anchor(chain)
+        recon = self.sp_engine.causal_reconstruction(
+            chain, fix_vars=[], target_state="叙事逻辑自洽"
+        )
+        deep = (
+            self.sp_engine.deep_diagnose(chain, self.world_builder.world_rules)
+            if use_llm
+            else None
+        )
+        return {
+            "event_count": len(chain),
+            "chain": chain,
+            "collapse_verdict": hedge["collapse_verdict"],
+            "weakest_variable": hedge["weakest_variable"],
+            "anchors": anchor,
+            "reconstruction": recon,
+            "deep": deep,
+        }
+
     def conceive_world(self, outline: str) -> Dict[str, Any]:
         """构思世界观：从自然语言提纲生成势力/地理/法则/时间线骨架，并写入全局 world_rules。"""
         self.world_builder.generate_skeleton(outline)
@@ -2186,10 +2610,55 @@ class SecondPerspectiveCausalEngine:
     _COMMS_HINTS = ["发消息", "打电话", "拉黑", "联系", "回复", "微信", "短信", "传讯"]
     _JUMP_HINTS = ["突然", "莫名", "毫无理由", "不知怎么", "鬼使神差", "突然之间"]
 
-    def narrative_stripping(self, events):
+    @staticmethod
+    def _coerce_events(events, names: Optional[Any] = None) -> List[Dict[str, Any]]:
+        """把多种上游输入统一成事件字典列表（类型兼容层）。
+
+        修复「中游断」：旧版只吃 List[dict]，若直接喂原文（str）会按「字符」迭代成垃圾。
+        现兼容：None / str（整段散文）/ List[str] / dict / List[dict] /
+        CausalNode / List[CausalNode]；names 为可选的已知角色姓名集（用于角色归属）。
+        """
+        if events is None:
+            return []
+        if isinstance(events, str):
+            return NarrativeStripper.to_events(events, names=names)
+        if isinstance(events, CausalNode):
+            events = [events]
+        elif isinstance(events, dict):
+            events = [events]
+        out: List[Dict[str, Any]] = []
+        for ev in events:
+            if isinstance(ev, dict):
+                out.append(dict(ev))
+            elif isinstance(ev, CausalNode):
+                out.append(
+                    {
+                        "id": getattr(ev, "node_id", "") or f"E{len(out):03d}",
+                        "premise": getattr(ev, "premise", ""),
+                        "conclusion": getattr(ev, "conclusion", ""),
+                        "character": getattr(ev, "character", ""),
+                    }
+                )
+            elif isinstance(ev, str):
+                out.extend(
+                    NarrativeStripper.to_events(ev, start_id=len(out), names=names)
+                )
+            else:
+                # 未知类型：尽力取通用字段，避免静默丢链
+                out.append(
+                    {
+                        "id": getattr(ev, "id", f"E{len(out):03d}"),
+                        "premise": getattr(ev, "premise", ""),
+                        "conclusion": getattr(ev, "conclusion", ""),
+                        "character": getattr(ev, "character", ""),
+                    }
+                )
+        return out
+
+    def narrative_stripping(self, events, names: Optional[Any] = None):
         chain = []
         seen_chars = set()
-        for i, ev in enumerate(events):
+        for i, ev in enumerate(self._coerce_events(events, names)):
             ev = dict(ev)
             ev.setdefault("id", f"E{i:03d}")
             ev.setdefault("character", "")

@@ -1353,6 +1353,29 @@ class ForeshadowLedger:
         }
         return ledger
 
+    def to_markdown(self) -> str:
+        """把伏笔台账导出为作者可读的回收表（Markdown）。决定论：仅复述已登记记录。"""
+        ledger = self.reconcile()
+        md = ["# 伏笔回收表（Foreshadow Ledger）", ""]
+        md.append(
+            f"- 已埋(SET)：{ledger['set_count']} ｜ 已收(PAY)：{ledger['pay_count']} ｜ "
+            f"未回收：{len(ledger['unrecovered_topics'])}"
+        )
+        if ledger["unrecovered_topics"]:
+            md.append("")
+            md.append("## ⚠️ 未回收伏笔")
+            for t in ledger["unrecovered_topics"]:
+                md.append(f"- {t}")
+        md.append("")
+        md.append("## 全部记录")
+        for r in self.records:
+            md.append(
+                f"- [{r['action']}] {r.get('topic') or '（未标记主题）'} "
+                f"（节点 {r['node_id']}｜角色 {r.get('character') or '?'}｜"
+                f"章节 {r.get('chapter') or '?'}）"
+            )
+        return "\n".join(md)
+
 
 # =============================================================================
 # 时空坐标一致性校验（角色 × 时间 × 地点 三维交叉）
@@ -4029,3 +4052,386 @@ if __name__ == "__main__":
         f"[作品基调] 题材={work['genre']} 人称={work['person']} 视角={work['perspective']} "
         f"语言={work['language']} 节奏={work['pace']}"
     )
+
+
+# =============================================================================
+# 创作者工具箱（Creator Toolkit）—— 把审计内核交付到作者手里的外围模块
+#   A. 创作流闭环（增量审计 + 大纲↔正文同步）
+#   B. 作者能看懂、能改的产物（设定集 / 因果图谱 / 伏笔&一致性清单）
+#   C. 交付与采纳（建议采纳闭环 / 多格式导出）
+# 设计原则：纯规则、决定论、零或轻量依赖（docx 导出需 python-docx，已获授权）。
+# =============================================================================
+
+
+# ==================== 模块A：创作流闭环 ====================
+class IncrementalAuditor:
+    """增量审计器：只对「新增/改动段落」做轻量审计，避免每次全量重跑。
+
+    决定论：复用现有规则（逻辑跳跃词 / 人物一致性 / 伏笔关键词），
+    若持有 engine 引用，则把段落解析成单节点跑一次节点级审计（node_auditor）。
+    """
+
+    _JUMP_WORDS = (
+        "突然之间", "突然间", "突然地", "突然", "莫名地", "莫名的", "莫名其妙地",
+        "莫名其妙", "莫名", "毫无理由地", "毫无理由", "不知怎么地", "不知怎么",
+        "鬼使神差地", "鬼使神差", "无缘无故地", "无缘无故", "毫无征兆地",
+        "毫无征兆", "说变就变",
+    )
+    _SET_HINTS = ("埋下伏笔", "埋下", "埋伏笔", "留下线索", "铺下伏笔", "埋线")
+    _PAY_HINTS = ("回收伏笔", "呼应", "揭开", "真相大白", "兑现", "收回伏笔", "揭开谜底")
+
+    def __init__(self, engine: Optional["UltimateCausalNovelEngine"] = None):
+        self.engine = engine
+
+    def audit_segment(self, text: str, global_state: Optional["GlobalState"] = None) -> Dict[str, Any]:
+        """审计单个新增/改动段落，返回 {passed, issues[], segment_len}。"""
+        issues: List[Dict[str, str]] = []
+        # 1) 逻辑跳跃词
+        hits = [w for w in self._JUMP_WORDS if w in text]
+        if hits:
+            issues.append({"type": "logical_jump", "detail": "发现生硬转折词：" + "、".join(hits)})
+        # 2) 伏笔信号
+        for w in self._SET_HINTS:
+            if w in text:
+                issues.append({"type": "foreshadow_set", "detail": f"检测到伏笔埋设信号：{w}"})
+                break
+        for w in self._PAY_HINTS:
+            if w in text:
+                issues.append({"type": "foreshadow_pay", "detail": f"检测到伏笔回收信号：{w}"})
+                break
+        # 3) 若有 engine，跑一次节点级审计（人物/前提结论匹配/脆弱性）
+        if self.engine is not None and global_state is not None:
+            node = CausalNode(premise="", conclusion=text)
+            node.character = _extract_plausible_name(text)
+            try:
+                rep = self.engine.node_auditor.audit({"node": node, "text": text})
+                for name, res in rep.get("analysis", {}).items():
+                    for issue in res.get("issues", []):
+                        issues.append({"type": f"node:{name}", "detail": issue})
+            except Exception:
+                pass  # 降级：仅规则层
+        return {"passed": len(issues) == 0, "issues": issues, "segment_len": len(text)}
+
+
+def sync_outline_from_text(engine: "UltimateCausalNovelEngine", text: str) -> List[CausalNode]:
+    """正文 → 大纲：把正文用 NarrativeStripper 抽成因果节点，写回 engine.causal_graph。
+
+    返回新增节点列表。相邻节点自动建立父子关系，便于后续图谱可视化。
+    """
+    events = NarrativeStripper.to_events(text)
+    nodes: List[CausalNode] = []
+    prev: Optional[CausalNode] = None
+    for ev in events:
+        node = CausalNode(
+            premise=ev.get("premise", ""),
+            conclusion=ev["conclusion"],
+            character=ev.get("character", ""),
+        )
+        if prev is not None:
+            node.parent_nodes.append(prev.node_id)
+            prev.child_nodes.append(node.node_id)
+        engine.causal_graph[node.node_id] = node
+        nodes.append(node)
+        prev = node
+    # 同步进伏笔台账（顺手登记正文里的伏笔语义）
+    engine.foreshadow_ledger.scan_nodes(nodes, chapter_id="")
+    return nodes
+
+
+def sync_text_from_outline(engine: "UltimateCausalNovelEngine", outline: str) -> str:
+    """大纲 → 正文草稿（无副作用版）：把 A→B→C 大纲展开为叙事节拍文本。
+
+    仅做确定性展开，不调用 LLM、不改全局状态；如需丰满正文请用 engine.render_chapter。
+    """
+    nodes = parse_outline_to_nodes(outline)
+    beats: List[str] = []
+    for n in nodes:
+        if n.premise and n.premise != "（待续）":
+            beats.append(f"{n.premise} → {n.conclusion}")
+        else:
+            beats.append(n.conclusion)
+    return "\n".join(beats)
+
+
+# ==================== 模块B：作者能看懂、能改的产物 ====================
+@dataclass
+class CharacterProfile:
+    """单个角色的权威档案（角色圣经条目）。作者确认后写入，作为一致性审计的基准。"""
+    name: str
+    traits: Dict[str, Any] = field(default_factory=dict)          # 性格 / 简介等
+    arc: List[str] = field(default_factory=list)                  # 角色弧光节点
+    relationships: Dict[str, str] = field(default_factory=dict)   # 他角 -> 关系描述
+    timeline: List[Dict[str, Any]] = field(default_factory=list)  # 该角色事件时间线
+    known_knowledge: List[str] = field(default_factory=list)      # 已知信息
+    forbidden_knowledge: List[str] = field(default_factory=list)  # 不该知道的事
+    register_hints: List[str] = field(default_factory=list)      # 语域画像候选
+    version: int = 1
+
+
+class CharacterBible:
+    """可编辑设定集：把自动抽取的候选档案接进「作者确认」闭环，沉淀为权威角色圣经。
+
+    诚实原则：自动产物一律标记 candidate，需作者 confirm() 后才成为权威字段。
+    """
+
+    def __init__(self, global_state: "GlobalState"):
+        self.global_state = global_state
+        self.profiles: Dict[str, CharacterProfile] = {}
+        self._bootstrap_from_state()
+
+    def _bootstrap_from_state(self):
+        for name, info in self.global_state.characters.items():
+            self.profiles[name] = CharacterProfile(name=name, traits=info or {})
+
+    def ingest_candidates(self, candidates: Dict[str, Dict[str, Any]]) -> List[str]:
+        """并入 extract_character_profiles 的候选（仅补充，不覆盖作者已确认字段）。返回受影响角色。"""
+        touched: List[str] = []
+        for name, cand in candidates.items():
+            p = self.profiles.setdefault(name, CharacterProfile(name=name))
+            for h in cand.get("register_hints_candidates", []):
+                if h not in p.register_hints:
+                    p.register_hints.append(h)
+            for k in cand.get("knowledge_candidates", []):
+                if k not in p.known_knowledge:
+                    p.known_knowledge.append(k)
+            touched.append(name)
+        return touched
+
+    def confirm(self, name: str, **fields) -> CharacterProfile:
+        """作者确认：显式写入权威字段（traits/arc/relationships/forbidden_knowledge...）。"""
+        p = self.profiles.setdefault(name, CharacterProfile(name=name))
+        for k, v in fields.items():
+            if hasattr(p, k):
+                setattr(p, k, v)
+        # 回写 global_state.characters，保持与引擎一致
+        self.global_state.characters.setdefault(name, {})
+        self.global_state.characters[name].update({
+            "性格": p.traits.get("性格", "中性"),
+            "简介": p.traits.get("简介", ""),
+        })
+        p.version += 1
+        return p
+
+    def add_forbidden_knowledge(self, name: str, items) -> None:
+        """登记角色不该知道的事（创作意图，默认由作者填写）。"""
+        p = self.profiles.setdefault(name, CharacterProfile(name=name))
+        if isinstance(items, str):
+            items = [items]
+        for it in items:
+            if it not in p.forbidden_knowledge:
+                p.forbidden_knowledge.append(it)
+
+    def to_markdown(self) -> str:
+        md = ["# 角色圣经（Character Bible）", ""]
+        if not self.profiles:
+            md.append("_（暂无角色，请先运行抽取或写作以自动注册）_")
+            return "\n".join(md)
+        for name, p in self.profiles.items():
+            md.append(f"## {name}")
+            if p.traits:
+                md.append(f"- 设定：{p.traits}")
+            if p.arc:
+                md.append("- 弧光：" + " → ".join(p.arc))
+            if p.relationships:
+                md.append("- 关系：" + "；".join(f"{k}（{v}）" for k, v in p.relationships.items()))
+            if p.known_knowledge:
+                md.append("- 已知：" + "、".join(p.known_knowledge))
+            if p.forbidden_knowledge:
+                md.append("- 禁用知识：" + "、".join(p.forbidden_knowledge))
+            if p.register_hints:
+                md.append("- 语域候选：" + "、".join(p.register_hints))
+            md.append("")
+        return "\n".join(md)
+
+
+def export_causal_graph(engine: "UltimateCausalNovelEngine", fmt: str = "mermaid") -> str:
+    """剧情因果图谱可视化：把 engine.causal_graph 的节点与父子关系导出。
+
+    fmt=mermaid → Mermaid flowchart 代码（可贴入支持 Mermaid 的编辑器/README）；
+    fmt=dot     → Graphviz DOT（可用 dot 渲染为图片）。
+    """
+    nodes = list(engine.causal_graph.values())
+    if fmt == "mermaid":
+        lines = ["graph TD"]
+        for n in nodes:
+            label = (n.conclusion or n.premise or "")[:18].replace('"', "'")
+            lines.append(f'  {n.node_id}["{n.character or "?"}: {label}"]')
+            for c in n.child_nodes:
+                lines.append(f"  {n.node_id} --> {c}")
+        return "\n".join(lines)
+    elif fmt == "dot":
+        lines = ["digraph G {", "  rankdir=TD;"]
+        for n in nodes:
+            label = (n.conclusion or n.premise or "")[:18].replace('"', "'")
+            lines.append(f'  "{n.node_id}" [label="{n.character or "?"}: {label}"];')
+            for c in n.child_nodes:
+                lines.append(f'  "{n.node_id}" -> "{c}";')
+        lines.append("}")
+        return "\n".join(lines)
+    else:
+        raise ValueError(f"未知格式: {fmt}")
+
+
+def build_consistency_report(engine: "UltimateCausalNovelEngine") -> Dict[str, Any]:
+    """汇总全书的设定冲突清单：伏笔未回收 + 时空冲突。决定论结论，无概率。"""
+    report = {
+        "foreshadow": engine.foreshadow_ledger.reconcile(),
+        "spacetime": audit_spacetime_consistency(list(engine.causal_graph.values())),
+        "open_issues": [],
+    }
+    for t in report["foreshadow"]["unrecovered_topics"]:
+        report["open_issues"].append(f"伏笔未回收：{t}")
+    for c in report["spacetime"]["conflicts"]:
+        report["open_issues"].append(c)
+    report["all_clean"] = len(report["open_issues"]) == 0
+    return report
+
+
+# ==================== 模块C：交付与采纳 ====================
+def apply_review(
+    text: str,
+    issues: List[str],
+    accept_mask: Optional[List[bool]] = None,
+    characters: Optional[Dict[str, Any]] = None,
+    global_state: Optional["GlobalState"] = None,
+) -> str:
+    """逐条采纳/拒绝叙事呈现问题的修复并回写正文（采纳闭环）。
+
+    issues: 问题文本列表（与 accept_mask 一一对应，顺序同识别顺序）。
+    accept_mask: 同长度布尔；None=全部采纳。
+    规则修复与 repair_presentation_issues 的降级逻辑一致（删解说腔/删动机归因/遮台词）。
+    """
+    if accept_mask is None:
+        accept_mask = [True] * len(issues)
+    new_text = text
+    wr = (getattr(global_state, "world_rules", None) if global_state else None) or {}
+    sp = wr.get("style_profile") or {}
+    genre = sp.get("genre") if isinstance(sp, dict) else ""
+    modern = bool(wr.get("modern_setting")) or genre in {"都市", "科幻", "现代", "悬疑", "末世", "游戏", "星际", "赛博"}
+    forbidden = [] if modern else list(_ERA_FORBIDDEN_DEFAULT)
+    if isinstance(wr.get("era_forbidden_words"), list):
+        forbidden.extend(wr["era_forbidden_words"])
+    for issue, accept in zip(issues, accept_mask):
+        if not accept:
+            continue
+        # 1) 全知解说腔
+        applied = False
+        for w in _OMNISCIENT_PATTERNS:
+            if w in issue and w in new_text:
+                new_text = new_text.replace(w, "")
+                applied = True
+        # 2) 动机归因句
+        if not applied:
+            for pat in _EXPLAIN_MOTIVE_PATTERNS:
+                m = pat.search(new_text)
+                if m and any(k in issue for k in ("动机", "归因", "解释", "内心")):
+                    new_text = new_text.replace(m.group(0), "")
+                    break
+        # 3) 台词时代穿越（现代题材豁免）
+        if characters:
+            for d in _extract_dialogues(new_text):
+                if any(w in d for w in forbidden):
+                    new_text = new_text.replace(d, "……")
+    return new_text
+
+
+def export_novel(engine: "UltimateCausalNovelEngine", path: str, fmt: str = "md") -> str:
+    """多格式导出成书：md / html / epub / docx。
+
+    依赖：epub 用标准库 zipfile 手搓（零依赖）；docx 需要 python-docx（轻量依赖，已获授权）。
+    """
+    if fmt == "md":
+        full = f"# {engine.novel_title}\n\n"
+        for ch in engine.chapters:
+            if ch.content:
+                full += f"## 第{ch.chapter_id}章 {ch.title}\n\n{ch.content}\n\n"
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(full)
+    elif fmt == "html":
+        html = engine.report_generator.generate(engine.novel_title, engine.chapters)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+    elif fmt == "epub":
+        _write_epub(path, engine.novel_title, engine.chapters)
+    elif fmt == "docx":
+        _write_docx(path, engine.novel_title, engine.chapters)
+    else:
+        raise ValueError(f"未知格式: {fmt}")
+    return path
+
+
+def _write_epub(path: str, title: str, chapters: List["Chapter"]) -> None:
+    """用标准库 zipfile 手搓最小可用 EPUB 2.0（零依赖）。"""
+    import zipfile
+    from xml.sax.saxutils import escape
+
+    items = [(i, ch) for i, ch in enumerate(chapters) if ch.content]
+    manifest = [f"chap_{i+1}.xhtml" for i, _ in enumerate(items)]
+
+    def chap_xhtml(name, ch):
+        body = "".join(
+            f"<p>{escape(p)}</p>" for p in (ch.content or "").split("\n\n") if p.strip()
+        )
+        return (
+            '<?xml version="1.0" encoding="utf-8"?>\n'
+            '<html xmlns="http://www.w3.org/1999/xhtml">'
+            f"<head><title>{escape(ch.title)}</title></head>"
+            f"<body><h1>第{ch.chapter_id}章 {escape(ch.title)}</h1>{body}</body></html>"
+        )
+
+    opf = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="bookid">\n'
+        '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+        f"<dc:title>{escape(title)}</dc:title>"
+        f"<dc:identifier id=\"bookid\">urn:uuid:{uuid.uuid4()}</dc:identifier>\n"
+        "<dc:language>zh</dc:language></metadata>\n<manifest>\n"
+        '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n'
+        + "".join(
+            f'<item id="item{i}" href="{n}" media-type="application/xhtml+xml"/>\n'
+            for i, n in enumerate(manifest)
+        )
+        + "</manifest>\n<spine>"
+        + "".join(f'<itemref idref="item{i}"/>' for i in range(len(manifest)))
+        + "</spine>\n</package>"
+    )
+    ncx = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">\n'
+        f"<docTitle><text>{escape(title)}</text></docTitle>\n<navMap>"
+        + "".join(
+            f'<navPoint id="np{i}" playOrder="{i+1}"><navLabel><text>{escape(items[i][1].title)}</text></navLabel>'
+            f'<content src="{manifest[i]}"/></navPoint>'
+            for i in range(len(items))
+        )
+        + "</navMap>\n</ncx>"
+    )
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr(
+            "META-INF/container.xml",
+            '<?xml version="1.0"?><container version="1.0" '
+            'xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles>'
+            '<rootfile full-path="content.opf" media-type="application/oebps-package+xml"/>'
+            "</rootfiles></container>",
+        )
+        z.writestr("content.opf", opf)
+        z.writestr("toc.ncx", ncx)
+        for (i, ch), n in zip(items, manifest):
+            z.writestr(n, chap_xhtml(n, ch))
+
+
+def _write_docx(path: str, title: str, chapters: List["Chapter"]) -> None:
+    """用 python-docx 导出 Word（轻量依赖，已获授权）。"""
+    from docx import Document
+
+    doc = Document()
+    doc.add_heading(title, level=0)
+    for ch in chapters:
+        if not ch.content:
+            continue
+        doc.add_heading(f"第{ch.chapter_id}章 {ch.title}", level=1)
+        for para in ch.content.split("\n\n"):
+            if para.strip():
+                doc.add_paragraph(para)
+    doc.save(path)

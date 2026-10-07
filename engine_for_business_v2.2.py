@@ -85,7 +85,12 @@ class ContractClauseType(Enum):
     EFFECTIVENESS = auto()  # 生效条款
     OTHER = auto()  # 其他条款
 # =============================================================================
-# 第二视角因果推理引擎 V2.1（决定论内核，无概率化推测）
+# 第二视角因果推理引擎 V2.2（决定论内核，无概率化推测）
+# V2.2 判级校准：
+#   1) INEVITABLE 唯一保留给"命中效力性强制规定/法定无效情形"（民法典第506、153条）；
+#      一般条款缺失降为 CONDITIONAL——法院可依民法典第510、511条法定填补，不构成"必然崩溃"。
+#   2) 收敛判定只认经外部确认（fix.confirmed=True）的修复，引擎自产建议不构成"已修复"（审计不自证）。
+#   3) 新增责任上限/间接损失排除检查、效力性风险检测；修复模板去除违约金一刀切比例。
 # 五步算子：叙事剥离 → 内隐假设透视 → 脆弱性对冲 → 责任闭环锚定 → 因果重构
 # 企业版：合同审查专用实现。
 # =============================================================================
@@ -185,6 +190,17 @@ class SecondPerspectiveCausalEngine:
             any(k in fact for k in ("时效", "诉讼时效", "除斥期间", "期限"))
             for fact in established_facts
         )
+    @staticmethod
+    def _detect_hard_invalid(text: str) -> Optional[str]:
+        """效力性强制规定/法定无效情形检测（《民法典》第506、153条口径）。
+        命中即判 INEVITABLE——这是"必然崩溃"判级的唯一保留用途。"""
+        if "人身损害" in text and any(
+            w in text for w in ("免责", "不承担责任", "不负责", "概不负责")
+        ):
+            return "人身损害免责条款无效（《民法典》第506条）"
+        if "概不负责" in text or "放弃诉讼权利" in text:
+            return "绝对免责/剥夺诉权表述存在效力风险（《民法典》第506、153条）"
+        return None
     @classmethod
     def _classify_clause_type(
         cls, text: str, conclusion: str = ""
@@ -252,38 +268,26 @@ class SecondPerspectiveCausalEngine:
                 seen_parties.add(party)
             all_clause_texts.append(text)
             chain.append(cl)
-        # 第二轮：检测条款间依赖悬空
+        # 第二轮：检测条款间依赖悬空（循环不变量只计算一次）
+        joined = "".join(all_clause_texts)
+        has_acceptance = any(h in joined for h in self._CONTRACT_ACCEPTANCE_HINTS)
+        has_breach = any(h in joined for h in self._CONTRACT_BREACH_HINTS)
+        has_obligation = any(
+            h in joined
+            for h in (
+                self._CONTRACT_PAYMENT_HINTS
+                + self._CONTRACT_DELIVERY_HINTS
+                + self._CONTRACT_CONFIDENTIALITY_HINTS
+            )
+        )
+        has_notice = any(h in joined for h in self._CONTRACT_NOTICE_HINTS)
+        has_dispute = any(h in joined for h in self._CONTRACT_DISPUTE_HINTS)
+        has_force_majeure = any(
+            h in joined for h in self._CONTRACT_FORCE_MAJEURE_HINTS
+        )
         for i, cl in enumerate(chain):
             text = cl.get("premise", "") + cl.get("conclusion", "")
             ct = cl["clause_type"]
-            has_acceptance = any(
-                h in t
-                for t in all_clause_texts
-                for h in self._CONTRACT_ACCEPTANCE_HINTS
-            )
-            has_breach = any(
-                h in t for t in all_clause_texts for h in self._CONTRACT_BREACH_HINTS
-            )
-            has_obligation = any(
-                h in t
-                for t in all_clause_texts
-                for h in (
-                    self._CONTRACT_PAYMENT_HINTS
-                    + self._CONTRACT_DELIVERY_HINTS
-                    + self._CONTRACT_CONFIDENTIALITY_HINTS
-                )
-            )
-            has_notice = any(
-                h in t for t in all_clause_texts for h in self._CONTRACT_NOTICE_HINTS
-            )
-            has_dispute = any(
-                h in t for t in all_clause_texts for h in self._CONTRACT_DISPUTE_HINTS
-            )
-            has_force_majeure = any(
-                h in t
-                for t in all_clause_texts
-                for h in self._CONTRACT_FORCE_MAJEURE_HINTS
-            )
             dangling_deps = []
             if ct == "PAYMENT" and not has_acceptance:
                 dangling_deps.append("PAYMENT_WITHOUT_ACCEPTANCE")
@@ -293,8 +297,13 @@ class SecondPerspectiveCausalEngine:
                 dangling_deps.append("LIABILITY_WITHOUT_BREACH")
             if ct == "TERMINATION" and not has_notice:
                 dangling_deps.append("TERMINATION_WITHOUT_NOTICE")
+            # 效力性风险：唯一"必然崩溃"情形
+            hard_invalid = self._detect_hard_invalid(text)
+            if hard_invalid:
+                dangling_deps.append("HARD_INVALID_RISK")
             cl["dangling_deps"] = dangling_deps
             cl["dangling"] = len(dangling_deps) > 0
+            cl["hard_invalid"] = hard_invalid
             # 全局缺失检测
             cl["missing_globals"] = []
             if not has_dispute:
@@ -312,15 +321,23 @@ class SecondPerspectiveCausalEngine:
             text = cl.get("premise", "") + cl.get("conclusion", "")
             assumptions = []
             ct = cl.get("clause_type", "OTHER")
+            if cl.get("hard_invalid"):
+                assumptions.append(
+                    {
+                        "content": cl["hard_invalid"],
+                        "reverse_check": "命中效力性强制规定 -> 条款无效风险，必须删除重拟",
+                        "collapse": "INEVITABLE",
+                    }
+                )
             if ct == "PAYMENT":
                 has_acceptance = any(
                     h in all_text_joined for h in self._CONTRACT_ACCEPTANCE_HINTS
                 )
                 assumptions.append(
                     {
-                        "content": "付款义务以验收合格为前提",
-                        "reverse_check": "撤除验收条款 -> 付款条件无判定标准，义务触发节点缺失",
-                        "collapse": "INEVITABLE" if not has_acceptance else "STABLE",
+                        "content": "付款义务宜以验收合格为前提（缺失时法院可依《民法典》第510、511条以强制性国标/行业标准填补，属可控风险）",
+                        "reverse_check": "撤除验收条款 -> 付款条件无约定标准，需依赖法定填补，建议补充",
+                        "collapse": "CONDITIONAL" if not has_acceptance else "STABLE",
                     }
                 )
                 has_delivery = any(
@@ -344,9 +361,9 @@ class SecondPerspectiveCausalEngine:
                 )
                 assumptions.append(
                     {
-                        "content": "违约以有效义务条款存在为前提",
-                        "reverse_check": "撤除义务条款 -> 违约判定无基准，责任真空",
-                        "collapse": "INEVITABLE" if not has_obligation else "STABLE",
+                        "content": "违约以有效义务条款存在为前提（义务不明时可依《民法典》第510、511条填补，属可控风险）",
+                        "reverse_check": "撤除义务条款 -> 违约判定无约定基准，建议补充",
+                        "collapse": "CONDITIONAL" if not has_obligation else "STABLE",
                     }
                 )
             if ct == "LIABILITY":
@@ -355,20 +372,44 @@ class SecondPerspectiveCausalEngine:
                 )
                 assumptions.append(
                     {
-                        "content": "赔偿责任以违约事实成立为前提",
-                        "reverse_check": "撤除违约条款 -> 赔偿无触发条件，责任链断裂",
-                        "collapse": "INEVITABLE" if not has_breach else "STABLE",
+                        "content": "赔偿责任以违约事实成立为前提（违约情形不明时可依交易习惯填补，属可控风险）",
+                        "reverse_check": "撤除违约条款 -> 赔偿无约定触发条件，建议补充",
+                        "collapse": "CONDITIONAL" if not has_breach else "STABLE",
                     }
                 )
+            # 责任上限检查：违约/赔偿条款（BREACH 常因"违约"字样优先于 LIABILITY
+            # 命中，故两类都查）若无任何责任上限/间接损失排除表述，则敞口无界
+            if ct in ("LIABILITY", "BREACH"):
+                has_cap = any(
+                    h in all_text_joined
+                    for h in (
+                        "责任上限",
+                        "责任限额",
+                        "赔偿限额",
+                        "赔偿总额不超过",
+                        "赔偿总额以",
+                        "间接损失不承担",
+                        "间接损失不赔偿",
+                    )
+                )
+                if not has_cap:
+                    assumptions.append(
+                        {
+                            "content": "赔偿责任应设置上限并排除间接损失，否则风险敞口无界",
+                            "reverse_check": "无责任上限 -> 赔偿范围以实际损失为限且不封顶，重大违约时敞口失控",
+                            "collapse": "CONDITIONAL",
+                            "fix_hint": "ADD_LIABILITY_CAP",
+                        }
+                    )
             if ct == "TERMINATION":
                 has_notice = any(
                     h in all_text_joined for h in self._CONTRACT_NOTICE_HINTS
                 )
                 assumptions.append(
                     {
-                        "content": "终止权以通知程序为行使前提",
-                        "reverse_check": "撤除通知条款 -> 终止程序缺失，单方终止无程序保障",
-                        "collapse": "INEVITABLE" if not has_notice else "STABLE",
+                        "content": "终止权宜以通知程序为行使保障（法定解除权依《民法典》第563条不因未约定通知程序而消灭，属可控风险）",
+                        "reverse_check": "撤除通知条款 -> 约定解除程序缺失，建议补充",
+                        "collapse": "CONDITIONAL" if not has_notice else "STABLE",
                     }
                 )
             if ct == "CONFIDENTIALITY":
@@ -386,12 +427,13 @@ class SecondPerspectiveCausalEngine:
                 )
                 assumptions.append(
                     {
-                        "content": "争议解决以管辖/仲裁约定明确为前提",
-                        "reverse_check": "撤除管辖约定 -> 争议解决无机构，程序悬空",
-                        "collapse": "INEVITABLE" if not has_jurisdiction else "STABLE",
+                        "content": "争议解决宜明确管辖/仲裁机构（未约定时依《民事诉讼法》第24条由被告住所地或合同履行地法院管辖，非程序悬空）",
+                        "reverse_check": "撤除管辖约定 -> 无法自主选择管辖，建议补充",
+                        "collapse": "CONDITIONAL" if not has_jurisdiction else "STABLE",
                     }
                 )
-            # 时效检测
+            # 时效检测：法定时效（《民法典》第188条，3年）自动适用，
+            # 未约定属常态——降级为 ADVISORY，仅提示、不计入脆弱性分
             has_limitation = any(
                 h in all_text_joined for h in self._CONTRACT_LIMITATION_HINTS
             )
@@ -402,34 +444,36 @@ class SecondPerspectiveCausalEngine:
             ):
                 assumptions.append(
                     {
-                        "content": "违约/责任条款应约定诉讼时效或适用法定时效",
-                        "reverse_check": "撤除时效约定 -> 权利行使期限不明，时效风险",
-                        "collapse": "CONDITIONAL",
+                        "content": "如需另行约定时效起算/中断安排可补充（法定诉讼时效自动适用，未约定不构成风险）",
+                        "reverse_check": "无时效约定 -> 适用法定时效，无额外风险",
+                        "collapse": "ADVISORY",
                     }
                 )
             cl["assumptions"] = assumptions
         return chain
     def contract_vulnerability_hedge(self, chain):
-        """合同崩溃判定：责任真空=INEVITABLE，条款冲突=CONDITIONAL，时效缺失=CONDITIONAL。
+        """合同崩溃判定（V2.2 判级校准）：
+        效力性强制规定命中=INEVITABLE（唯一必然崩溃情形）；
+        一般条款缺失/依赖悬空/时效缺失=CONDITIONAL（法院可法定填补，属可控风险）。
         非概率判定，仅做结构性二元事实校验。"""
         weakest, weakest_score = None, -1.0
         global_missing = set()
+        has_hard_invalid = False
         for cl in chain:
             frag = 0
+            if cl.get("hard_invalid"):
+                has_hard_invalid = True
+                frag += 3  # 效力性风险 = 必然崩溃
             for dep in cl.get("dangling_deps", []):
-                if (
-                    dep.endswith("WITHOUT_OBLIGATION")
-                    or dep.endswith("WITHOUT_BREACH")
-                    or dep.endswith("WITHOUT_NOTICE")
-                ):
-                    frag += 3  # 责任真空 = 必然崩溃
-                else:
-                    frag += 1  # 条件缺失 = 条件性崩溃
+                if dep == "HARD_INVALID_RISK":
+                    continue  # 已按 hard_invalid 计分，避免重复
+                frag += 1  # 条款缺失/依赖悬空 = 条件性风险
             for a in cl.get("assumptions", []):
                 if a["collapse"] == "INEVITABLE":
                     frag += 3
                 elif a["collapse"] == "CONDITIONAL":
                     frag += 1
+                # ADVISORY：仅提示性假设（如法定时效已自动适用），不计分
             for missing in cl.get("missing_globals", []):
                 global_missing.add(missing)
                 frag += 1
@@ -438,9 +482,7 @@ class SecondPerspectiveCausalEngine:
                 weakest_score, weakest = frag, cl
         # 全局缺失扣分
         global_frag = len(global_missing) * 2
-        if weakest is None and not global_missing:
-            verdict = "STABLE"
-        elif weakest_score >= 3 or global_frag >= 4:
+        if has_hard_invalid:
             verdict = "INEVITABLE_COLLAPSE"
         elif weakest_score >= 1 or global_frag >= 2:
             verdict = "CONDITIONAL_COLLAPSE"
@@ -485,41 +527,46 @@ class SecondPerspectiveCausalEngine:
             )
         return anchors
     def contract_causal_reconstruction(
-        self, chain, fix_vars, target_state="合同因果自洽"
+        self, chain, fix_vars=None, target_state="合同因果自洽"
     ):
-        """合同因果重构：注入修正变量（补充条款），校验收敛。"""
-        fixed_ids = set()
-        for cl in chain:
-            for fix in fix_vars or []:
-                if cl["id"] == fix.get("target_id") or fix.get("apply_to") == "all":
-                    cl["premise"] = (
-                        cl.get("premise", "") + "；" + fix.get("adds_premise", "")
-                    ).strip("；")
-                    cl["dangling"] = False
-                    cl["dangling_deps"] = []
-                    fixed_ids.add(cl["id"])
+        """合同因果重构（V2.2 审计不自证）：仅当修正变量经外部确认
+        （fix.confirmed=True）时视为已修复并校验收敛。
+        引擎自产的修复建议不构成"已修复"——收敛判定只认已应用的修改。"""
+        applied_ids = set()
+        if fix_vars:
+            for cl in chain:
+                for fix in fix_vars:
+                    if cl["id"] == fix.get("target_id") and fix.get("confirmed"):
+                        cl["premise"] = (
+                            cl.get("premise", "") + "；" + fix.get("adds_premise", "")
+                        ).strip("；")
+                        applied_ids.add(cl["id"])
         residual = []
         for cl in chain:
+            if cl.get("hard_invalid") and cl["id"] not in applied_ids:
+                residual.append(
+                    f"条款{cl['id']}命中效力性强制规定：{cl['hard_invalid']}"
+                )
             for dep in cl.get("dangling_deps", []):
-                if cl["id"] not in fixed_ids:
+                if dep == "HARD_INVALID_RISK":
+                    continue  # 已单独列示
+                if cl["id"] not in applied_ids:
                     residual.append(
                         f"条款{cl['id']}({cl.get('clause_type', '')})依赖悬空：{dep}"
                     )
-            for a in cl.get("assumptions", []):
-                if a["collapse"] == "INEVITABLE" and not fix_vars:
-                    residual.append(f"条款{cl['id']}关键预设不可逆撤除：{a['content']}")
         if residual:
             return {
                 "converged": False,
-                "diagnosis": "[中断：合同因果链未收敛] " + "；".join(residual),
-                "fixed_ids": list(fixed_ids),
+                "diagnosis": "[中断：合同因果链未收敛，待外部确认修复方案] "
+                + "；".join(residual),
+                "fixed_ids": sorted(applied_ids),
                 "suggested_fixes": self._suggest_contract_fixes(chain),
             }
         return {
             "converged": True,
             "target_state": target_state,
             "diagnosis": f"合同因果链收敛至目标稳态：{target_state}",
-            "fixed_ids": list(fixed_ids),
+            "fixed_ids": sorted(applied_ids),
         }
     def _extract_contract_action(self, conclusion: str, clause_type: str) -> str:
         """提取合同条款中的核心行为动词。"""
@@ -541,11 +588,31 @@ class SecondPerspectiveCausalEngine:
                 return h
         return conclusion[:15]
     def _suggest_contract_fixes(self, chain) -> List[Dict[str, str]]:
-        """根据悬空依赖生成补充条款建议。"""
+        """根据悬空依赖与假设 fix_hint 生成补充条款建议。"""
         suggestions = []
         for cl in chain:
+            # 假设透视标记的修复提示（如责任上限缺失）
+            for a in cl.get("assumptions", []):
+                hint = a.get("fix_hint")
+                if hint and a.get("collapse") == "CONDITIONAL":
+                    if hint == "ADD_LIABILITY_CAP":
+                        suggestions.append(
+                            {
+                                "target_id": cl["id"],
+                                "fix_type": "ADD_LIABILITY_CAP",
+                                "adds_premise": "补充责任上限条款：任一方累计赔偿责任以合同总价款为限，间接损失、预期利润、商誉损失不在赔偿范围",
+                            }
+                        )
             for dep in cl.get("dangling_deps", []):
-                if dep == "PAYMENT_WITHOUT_ACCEPTANCE":
+                if dep == "HARD_INVALID_RISK":
+                    suggestions.append(
+                        {
+                            "target_id": cl["id"],
+                            "fix_type": "REMOVE_INVALID_CLAUSE",
+                            "adds_premise": f"删除或重拟该条款：{cl.get('hard_invalid', '效力性风险')}",
+                        }
+                    )
+                elif dep == "PAYMENT_WITHOUT_ACCEPTANCE":
                     suggestions.append(
                         {
                             "target_id": cl["id"],
@@ -597,13 +664,11 @@ class SecondPerspectiveCausalEngine:
         return suggestions
     # —— 内部工具 ——
     def _infer_character(self, text):
-        """兜底角色推断：优先匹配合同主体称谓（甲方/乙方/丙方…），
-        未显式声明时退回提取首个 2-3 字中文名候选（非贪婪，避免吞并相邻字）。"""
+        """兜底角色推断：仅匹配合同主体称谓（甲方/乙方/丙方…）。
+        未显式声明时返回空串——不做模糊抓取，避免把"任何""双方"前的
+        无关词当成责任主体（V2.2 修复：原 2-3 字贪心正则会抓出"任何"）。"""
         m = re.search(r"[甲乙丙丁戊己庚辛壬癸]方", text)
-        if m:
-            return m.group(0)
-        m = re.search(r"([\u4e00-\u9fa5]{2,3}?)", text)
-        return m.group(1) if m else ""
+        return m.group(0) if m else ""
 # =============================================================================
 # 结构性修复引擎 V5
 # 解决条款缺失等结构性问题（非表层词替换）
@@ -649,7 +714,7 @@ class StructuralRepairEngine:
                         {
                             "target_id": item["id"],
                             "fix_type": "ADD_BREACH_CLAUSE",
-                            "adds_premise": "任何一方未按约履行义务即构成违约，违约金按合同总额10%计算",
+                            "adds_premise": "补充违约条款：明确违约情形认定；违约金标准应结合预估实际损失设定（法院可依《民法典》第585条参照实际损失予以调整，约定过高部分不予支持），并同步设置责任上限",
                         }
                     )
                 elif dep == "TERMINATION_WITHOUT_NOTICE":
@@ -725,6 +790,11 @@ class ContractReviewEngine:
         print(f"   条款类型分布：{dict(type_dist)}")
         dangling_count = sum(1 for cl in chain if cl.get("dangling"))
         print(f"   依赖悬空条款：{dangling_count}个")
+        hard_invalid_count = sum(1 for cl in chain if cl.get("hard_invalid"))
+        if hard_invalid_count:
+            print(
+                f"   ⚠️ 效力性风险条款：{hard_invalid_count}个（唯一'必然崩溃'情形，须删除重拟）"
+            )
         # 【SPL 2 内隐假设透视：逆反校验】
         print("2/5 执行：内隐假设透视 & 逆反校验")
         chain = self.sp_engine.contract_assumption_probe(
@@ -791,8 +861,9 @@ class ContractReviewEngine:
         if all_fixes:
             print(f"   修复建议：{len(all_fixes)}条")
         # 【第二视角五步内核：因果重构收敛校验】
+        # V2.2：不注入引擎自产建议——自产建议未经外部确认不构成"已修复"（审计不自证）
         sp_recon = self.sp_engine.contract_causal_reconstruction(
-            chain, fix_vars=all_fixes, target_state="合同因果自洽"
+            chain, fix_vars=None, target_state="合同因果自洽"
         )
         if not sp_recon["converged"]:
             print(f"   ⚠️ {sp_recon['diagnosis']}")
@@ -808,6 +879,15 @@ class ContractReviewEngine:
             "collapse_verdict": verdict,
             "weakest_clause": hedge_report.get("weakest_clause_type"),
             "global_missing": hedge_report.get("global_missing", []),
+            "hard_invalid_clauses": [
+                {
+                    "id": cl["id"],
+                    "type": cl.get("clause_type"),
+                    "reason": cl.get("hard_invalid"),
+                }
+                for cl in chain
+                if cl.get("hard_invalid")
+            ],
             "responsibility_anchors": anchors,
             "repair_suggestions": all_fixes,
             "repair_logs": self.repair_engine.repair_logs,
@@ -849,7 +929,12 @@ class ContractReviewEngine:
             raw = self.llm_provider.generate(prompt, temperature=0.3, max_tokens=4096)
             if raw.startswith("[LLM Error]"):
                 return {"llm_error": raw, "llm_analysis": None}
-            result = json.loads(raw)
+            # 剥离 LLM 常见的 markdown 代码围栏，避免 json.loads 失败
+            cleaned = raw.strip()
+            if cleaned.startswith("```"):
+                cleaned = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", cleaned)
+                cleaned = re.sub(r"```\s*$", "", cleaned).strip()
+            result = json.loads(cleaned)
             return result if isinstance(result, dict) else {"llm_raw_analysis": raw}
         except Exception as exc:
             return {"llm_error": f"{type(exc).__name__}: {exc}", "llm_analysis": None}
@@ -913,6 +998,14 @@ if __name__ == "__main__":
             "premise": "双方在合作期间获取的对方商业信息",
             "conclusion": "双方负有保密义务，不得向第三方披露",
         },
+        {
+            # V2.2 演示效力性风险检测：人身损害免责条款依《民法典》第506条无效
+            "id": "C007",
+            "party": "乙方",
+            "counterparty": "甲方",
+            "premise": "乙方在履行本合同过程中造成甲方任何人员人身损害的",
+            "conclusion": "乙方概不负责，甲方不得追究乙方任何责任",
+        },
     ]
     report = contract_engine.review(contract_clauses)
     print("\n" + "-" * 60)
@@ -922,6 +1015,9 @@ if __name__ == "__main__":
     print(f"  类型分布：{report['clause_type_distribution']}")
     print(f"  崩溃判定：{report['collapse_verdict']}")
     print(f"  全局缺失：{report['global_missing']}")
+    print(f"  效力性风险条款：{len(report['hard_invalid_clauses'])}个")
+    for hc in report["hard_invalid_clauses"]:
+        print(f"    - {hc['id']}({hc['type']}): {hc['reason']}")
     print(f"  悬空条款：{len(report['dangling_clauses'])}个")
     for dc in report["dangling_clauses"]:
         print(f"    - {dc['id']}({dc['type']}): {dc['deps']}")

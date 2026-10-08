@@ -42,45 +42,60 @@
 
 ```mermaid
 flowchart TB
-    subgraph P1["🖋️ 产品一 · 故事引擎（创作者 / 大众）"]
-        A1["创作者引擎<br/>角色设定 · 因果时间线 · 记忆线"]
-        A2["商业引擎 —— SPL 四阶段流水线<br/>剥离叙述 → 扫描假设<br/>→ 对冲风险 → 锁定责任"]
-    end
+    UP["👥 调用方<br/>创作者 · 企业法务 / 合规 · 命令行用户"]
 
-    subgraph P2["🏢 产品二 · 文档审查引擎（企业）"]
-        B1["合同 · 法规 ·<br/>公文 · 通用文本"]
-        B2["条款级规则扫描 + 文档级审计<br/>要素完备 · 一致性 · 权义对等 · 格式"]
-        B3["纯 JSON 规则库 · 不依赖大模型 · 零依赖 · 可离线运行"]
-    end
+    CIN["🖋️ Story Engine for Creator.py<br/>输入：人物 · 因果时间线 · 世界观"]
+    C1["🖋️ Story Engine for Creator.py · ResponsibilityAccount + CognitiveAuditEngine + AuditPlugin<br/>责任闭环锚定：把每条结论绑到责任方 · 可插拔插件跑认知审计"]
+    C2["🧹 NarrativeStripper → ImplicitAssumptionDetector<br/>剥离叙述修辞 · 探测没写明的隐含假设"]
+    C3["⚠️ VulnerabilityAssessor → AutomaticRepairEngine → WorldBuilder<br/>定位脆弱点 · 跳词修复 · 抽取世界观设定"]
+    COUT["⭐ 创作者支线输出<br/>给这份稿子的准确性评分"]
 
-    subgraph SHARED["🧩 两款产品共用的设计语言"]
-        C["责任闭环锚定 · 风险分级 · 全链路可追溯日志"]
-    end
+    BIN["📐 engine_for_business_v2.2.py<br/>输入：商业长文 / 合同原稿"]
+    B1["📐 SPL STRIP_NARRATIVE → SCAN_ASSUMPTION<br/>ImplicitAssumptionScanner 校验动机与情节逻辑"]
+    B2["🛡️ SPL HEDGE_RISK → LOCK_RESPONSIBILITY<br/>VulnerabilityHedge 对冲风险 · CausalIntersectionBroker 合并世界线 · 锁定责任 + 质量分"]
 
-    OUT["📄 报告：HTML · JSON · Markdown —— 每条结论都可倒查"]
+    DIN["🏛️ compliance_engine/cli.py → engine.py · audit / list-rules / demo<br/>输入：合同 · 法规 · 公文 · 通用文本"]
+    D1["🏛️ compliance_engine/engine.py · _segment + rules.py + rules/*.json<br/>把文本切成小节 · 对着规则库做条款级扫描"]
+    D2["📑 compliance_engine/auditors.py → models.py → report.py<br/>文档级审计（要素完备 / 一致性 / 权义对等 / 格式）· 责任闭环锚定 · 评分 · 出报告"]
 
-    A1 --> A2
-    A2 --> C
+    SH["🧵 TraceLog + _ENGINE_FINGERPRINT + check_engine_isolation()<br/>全链路留痕可倒查 · 两个引擎被混用时立即中断"]
+    OUT["📄 报告输出：HTML / JSON / Markdown<br/>每条结论都带着它的责任方"]
+    HUMAN["✍️ 人工签批<br/>最终结论留在算法之外"]
+
+    UP --> CIN
+    UP --> BIN
+    UP --> DIN
+    CIN --> C1
+    C1 --> C2
+    C2 --> C3
+    C3 --> COUT
+    BIN --> B1
     B1 --> B2
-    B2 --> B3
-    B3 --> C
-    C --> OUT
+    DIN --> D1
+    D1 --> D2
+    COUT --> SH
+    B2 --> SH
+    D2 --> SH
+    SH --> OUT
+    OUT --> HUMAN
 
-    classDef cA fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
-    classDef cB fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
-    classDef cS fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
+    classDef cUp fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,color:#424242
+    classDef cIn fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
+    classDef cCore fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
+    classDef cSide fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
     classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px,color:#14512B
-    class A1,A2 cA
-    class B1,B2,B3 cB
-    class C cS
-    class OUT cOut
+    class UP cUp
+    class CIN,BIN,DIN cIn
+    class C1,C2,C3,B1,B2,D1,D2 cCore
+    class SH cSide
+    class COUT,OUT,HUMAN cOut
 ```
 
 **这张图怎么看**
 
-1. **两款产品，一个仓库。** 左边给创作者用，右边给企业用，两者不必一起使用。
-2. **企业那条支路完全不调用大模型。** 它是纯 JSON 规则库，可离线运行——确定性高，也容易向审计方解释。
-3. **共用的那一层才是关键。** 两款产品都把每条发现锚定到责任方，并留下可以逐行倒查的日志。
+1. **从上往下：三个入口，一条脊柱。** 调用方分别进入创作者、商业、企业三条支线，每条支线最后都汇入同一套留痕层，产出同样三种格式的报告。
+2. **每个框都写了真实文件或类名。** `Story Engine for Creator.py`、`engine_for_business_v2.2.py`、`compliance_engine/engine.py`、`auditors.py`、`models.py`、`report.py`——可以对照源码直接翻。
+3. **企业支线是最硬的边界。** 它完全不依赖大模型：纯 JSON 规则库（`rules/*.json`），可离线运行，命中即判、结果确定。
 
 📖 每个术语都用一句人话解释 → [术语表 GLOSSARY](./GLOSSARY.md)
 

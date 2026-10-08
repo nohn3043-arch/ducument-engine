@@ -42,45 +42,60 @@
 
 ```mermaid
 flowchart TB
-    subgraph P1["🖋️ Product 1 — Story Engine (creators · general public)"]
-        A1["Creator engine<br/>character settings · causal timeline · memory lines"]
-        A2["Business engine — SPL four-stage pipeline<br/>strip narrative → scan assumptions<br/>→ hedge risk → lock responsibility"]
-    end
+    UP["👥 Callers<br/>creators · enterprise legal / compliance · CLI users"]
 
-    subgraph P2["🏢 Product 2 — Document Review Engine (enterprises)"]
-        B1["Contracts · regulations ·<br/>official documents · general text"]
-        B2["Clause-level rule scanning + document-level audit<br/>completeness · consistency · rights–obligation parity · formatting"]
-        B3["Pure JSON rule base · no LLM · zero dependencies · runs offline"]
-    end
+    CIN["🖋️ Story Engine for Creator.py<br/>input: characters · causal timeline · worldbuilding"]
+    C1["🖋️ Story Engine for Creator.py · ResponsibilityAccount + CognitiveAuditEngine + AuditPlugin<br/>anchor every finding to a responsible party · run pluggable cognitive-audit plugins"]
+    C2["🧹 NarrativeStripper → ImplicitAssumptionDetector<br/>strip rhetorical wording · detect unstated assumptions"]
+    C3["⚠️ VulnerabilityAssessor → AutomaticRepairEngine → WorldBuilder<br/>locate fragile points · skip-word repair · extract world settings"]
+    COUT["⭐ Creator-branch output<br/>an accuracy score for the draft"]
 
-    subgraph SHARED["🧩 The design language both products share"]
-        C["Responsibility-loop anchoring · risk grading · full-chain traceable log"]
-    end
+    BIN["📐 engine_for_business_v2.2.py<br/>input: business long-form text / draft contracts"]
+    B1["📐 SPL STRIP_NARRATIVE → SCAN_ASSUMPTION<br/>ImplicitAssumptionScanner verifies motivation and plot logic"]
+    B2["🛡️ SPL HEDGE_RISK → LOCK_RESPONSIBILITY<br/>VulnerabilityHedge hedges risk · CausalIntersectionBroker merges worldlines · locks responsibility + quality score"]
 
-    OUT["📄 Reports: HTML · JSON · Markdown — every verdict traceable"]
+    DIN["🏛️ compliance_engine/cli.py → engine.py · audit / list-rules / demo<br/>input: contracts · regulations · official documents · general text"]
+    D1["🏛️ compliance_engine/engine.py · _segment + rules.py + rules/*.json<br/>split the text into sections · scan clauses against the rule library"]
+    D2["📑 compliance_engine/auditors.py → models.py → report.py<br/>document-level audit (completeness / consistency / parity / format) · anchor responsibility · score · render"]
 
-    A1 --> A2
-    A2 --> C
+    SH["🧵 TraceLog + _ENGINE_FINGERPRINT + check_engine_isolation()<br/>every link traceable · aborts at once if the two engines are mixed"]
+    OUT["📄 Report: HTML / JSON / Markdown<br/>every finding carries its responsible party"]
+    HUMAN["✍️ Human sign-off<br/>the final call stays outside the algorithm"]
+
+    UP --> CIN
+    UP --> BIN
+    UP --> DIN
+    CIN --> C1
+    C1 --> C2
+    C2 --> C3
+    C3 --> COUT
+    BIN --> B1
     B1 --> B2
-    B2 --> B3
-    B3 --> C
-    C --> OUT
+    DIN --> D1
+    D1 --> D2
+    COUT --> SH
+    B2 --> SH
+    D2 --> SH
+    SH --> OUT
+    OUT --> HUMAN
 
-    classDef cA fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
-    classDef cB fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
-    classDef cS fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
+    classDef cUp fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,color:#424242
+    classDef cIn fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
+    classDef cCore fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
+    classDef cSide fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
     classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px,color:#14512B
-    class A1,A2 cA
-    class B1,B2,B3 cB
-    class C cS
-    class OUT cOut
+    class UP cUp
+    class CIN,BIN,DIN cIn
+    class C1,C2,C3,B1,B2,D1,D2 cCore
+    class SH cSide
+    class COUT,OUT,HUMAN cOut
 ```
 
 **How to read it**
 
-1. **Two products, one repo.** The left branch is for creators; the right branch is for enterprises. They never need to be used together.
-2. **The enterprise branch never calls an LLM.** It is a pure JSON rule base that runs offline — deterministic, and easy to explain to an auditor.
-3. **The shared layer is the point.** Both products anchor every finding to a responsible party and produce a log you can trace back line by line.
+1. **Top to bottom: three entries, one spine.** Callers feed three separate branches — creator, business and enterprise — and every branch ends in the same shared trace layer and the same three report formats.
+2. **Every box names a real file or class.** `Story Engine for Creator.py`, `engine_for_business_v2.2.py`, `compliance_engine/engine.py`, `auditors.py`, `models.py`, `report.py` — open the source and read along.
+3. **The enterprise branch is the hard boundary.** It never calls an LLM: it is a pure JSON rule library (`rules/*.json`), runs fully offline, and a rule hit is judged immediately and deterministically.
 
 📖 Every term explained in one plain sentence → [Glossary](./GLOSSARY.md)
 

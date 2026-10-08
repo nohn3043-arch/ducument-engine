@@ -36,6 +36,54 @@
 
 <p align="center">— ✦ —</p>
 
+## ✦ Architecture (Plain Language)
+
+> **In one sentence:** STORY-ENGINE is really **two products in one repo** — one that keeps a million-word novel from contradicting itself, and one that keeps enterprise documents compliant. Both share the same audit grammar.
+
+```mermaid
+flowchart TB
+    subgraph P1["🖋️ Product 1 — Story Engine (creators · general public)"]
+        A1["Creator engine<br/>character settings · causal timeline · memory lines"]
+        A2["Business engine — SPL four-stage pipeline<br/>strip narrative → scan assumptions<br/>→ hedge risk → lock responsibility"]
+    end
+
+    subgraph P2["🏢 Product 2 — Document Review Engine (enterprises)"]
+        B1["Contracts · regulations ·<br/>official documents · general text"]
+        B2["Clause-level rule scanning + document-level audit<br/>completeness · consistency · rights–obligation parity · formatting"]
+        B3["Pure JSON rule base · no LLM · zero dependencies · runs offline"]
+    end
+
+    subgraph SHARED["🧩 The design language both products share"]
+        C["Responsibility-loop anchoring · risk grading · full-chain traceable log"]
+    end
+
+    OUT["📄 Reports: HTML · JSON · Markdown — every verdict traceable"]
+
+    A1 --> A2
+    A2 --> C
+    B1 --> B2
+    B2 --> B3
+    B3 --> C
+    C --> OUT
+
+    classDef cA fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
+    classDef cB fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
+    classDef cS fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
+    classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px,color:#14512B
+    class A1,A2 cA
+    class B1,B2,B3 cB
+    class C cS
+    class OUT cOut
+```
+
+**How to read it**
+
+1. **Two products, one repo.** The left branch is for creators; the right branch is for enterprises. They never need to be used together.
+2. **The enterprise branch never calls an LLM.** It is a pure JSON rule base that runs offline — deterministic, and easy to explain to an auditor.
+3. **The shared layer is the point.** Both products anchor every finding to a responsible party and produce a log you can trace back line by line.
+
+📖 Every term explained in one plain sentence → [Glossary](./GLOSSARY.md)
+
 ## ✦ Design Direction
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">

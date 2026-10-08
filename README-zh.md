@@ -36,6 +36,54 @@
 
 <p align="center">— ✦ —</p>
 
+## ✦ 系统架构（人话版）
+
+> **一句话：** STORY-ENGINE 其实是**一个仓库里的两款产品**——一款让百万字长篇不自相矛盾，一款让企业文档保持合规。两者共用同一套审计语法。
+
+```mermaid
+flowchart TB
+    subgraph P1["🖋️ 产品一 · 故事引擎（创作者 / 大众）"]
+        A1["创作者引擎<br/>角色设定 · 因果时间线 · 记忆线"]
+        A2["商业引擎 —— SPL 四阶段流水线<br/>剥离叙述 → 扫描假设<br/>→ 对冲风险 → 锁定责任"]
+    end
+
+    subgraph P2["🏢 产品二 · 文档审查引擎（企业）"]
+        B1["合同 · 法规 ·<br/>公文 · 通用文本"]
+        B2["条款级规则扫描 + 文档级审计<br/>要素完备 · 一致性 · 权义对等 · 格式"]
+        B3["纯 JSON 规则库 · 不依赖大模型 · 零依赖 · 可离线运行"]
+    end
+
+    subgraph SHARED["🧩 两款产品共用的设计语言"]
+        C["责任闭环锚定 · 风险分级 · 全链路可追溯日志"]
+    end
+
+    OUT["📄 报告：HTML · JSON · Markdown —— 每条结论都可倒查"]
+
+    A1 --> A2
+    A2 --> C
+    B1 --> B2
+    B2 --> B3
+    B3 --> C
+    C --> OUT
+
+    classDef cA fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
+    classDef cB fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
+    classDef cS fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
+    classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px,color:#14512B
+    class A1,A2 cA
+    class B1,B2,B3 cB
+    class C cS
+    class OUT cOut
+```
+
+**这张图怎么看**
+
+1. **两款产品，一个仓库。** 左边给创作者用，右边给企业用，两者不必一起使用。
+2. **企业那条支路完全不调用大模型。** 它是纯 JSON 规则库，可离线运行——确定性高，也容易向审计方解释。
+3. **共用的那一层才是关键。** 两款产品都把每条发现锚定到责任方，并留下可以逐行倒查的日志。
+
+📖 每个术语都用一句人话解释 → [术语表 GLOSSARY](./GLOSSARY.md)
+
 ## ✦ 设计方向
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">

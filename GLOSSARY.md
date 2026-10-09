@@ -40,6 +40,37 @@
 
 ---
 
+## ✦ English Glossary
+
+*Every term explained in one plain sentence.*
+
+| Term | Plain meaning |
+|---|---|
+| **Story Engine** | A long-form consistency engine for creators: it audits character settings, causal timelines and memory lines automatically. |
+| **Document Review Engine** | An offline compliance review engine for businesses: zero dependencies, pure rule base, runs without a network. |
+| **Consistency audit** | Checks whether characters went out of character, timelines tangled, or memories stopped matching. |
+| **ResponsibilityAccount** | Every check is anchored to a named responsibility node (who · which role · which stage). |
+| **CognitiveAuditEngine** | The subject that performs the audit and can carry multiple audit dimensions. |
+| **AuditPlugin** | A pluggable audit dimension — want another check, plug in another plugin. |
+| **CausalNode** | One step of the plot; it carries implicit assumptions and a vulnerability score. |
+| **implicit_assumptions** | The premises that are never stated but must hold for the plot to continue. |
+| **vulnerability_score** | How badly the plot breaks if that premise turns out to be false. |
+| **NarrativeStripper** | Removes rhetoric and emotional wording, leaving only the chain of facts. |
+| **ImplicitAssumptionDetector** | Surfaces the premises that readers (and the author) never said out loud. |
+| **VulnerabilityAssessor** | Scores every assumption to find the link most likely to be knocked down. |
+| **OOC (out of character)** | A character acts or speaks against their established setting. |
+| **WorldBuilder** | Extracts factions, geography and other settings from the text at word level. |
+| **SPL four-stage pipeline** | Strip the narrative → scan assumptions → hedge the risk → lock responsibility. |
+| **STRIP_NARRATIVE / SCAN_ASSUMPTION / HEDGE_RISK / LOCK_RESPONSIBILITY** | The four stages' formal names in code. |
+| **CausalIntersectionBroker** | Merges multiple world lines / plot lines into one self-consistent main line. |
+| **Risk levels (SAFE / WARNING / CRITICAL / FATAL)** | Four severity tiers, from "no problem" to "fatal". |
+| **TraceLog** | Every judgement can be traced back to the evidence it came from. |
+| **RuleEngine** | Loads a pure-JSON rule base; a hit is a verdict, with no probabilistic guessing. |
+| **Hit = verdict** | A rule hit is the conclusion — no "probably", no "maybe". |
+| **Engine isolation check** | Alerts immediately when two same-named but different engines get mixed up, preventing data from overwriting each other. |
+
+---
+
 <div align="center">
 
 [← 返回 README](./README.md) &nbsp;·&nbsp; [中文说明](./README-zh.md)

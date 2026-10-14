@@ -5,12 +5,13 @@
 <p align="center">
   <img src="https://img.shields.io/badge/nlp-D4AF37?style=flat-square" alt="nlp">
   <img src="https://img.shields.io/badge/consistency-D4AF37?style=flat-square" alt="consistency">
-  <img src="https://img.shields.io/badge/long--form-D4AF37?style=flat-square" alt="long-form">
+  <img src="https://img.shields.io/badge/compliance-D4AF37?style=flat-square" alt="compliance">
+  <img src="https://img.shields.io/badge/offline-D4AF37?style=flat-square" alt="offline">
   <img src="https://img.shields.io/badge/second--perspective-D4AF37?style=flat-square" alt="second-perspective">
 </p>
 
 <blockquote align="center">
-  <em>Long-Form Narrative Consistency Engine</em>
+  <em>One repo · two engines — Story Engine and Document Review Engine</em>
 </blockquote>
 
 <p align="center">
@@ -21,11 +22,11 @@
 
 ## ✦ About
 
-<p style="font-size:15px;line-height:1.8;color:#2C2C2C">STORY-ENGINE consists of two clearly-positioned products:</p>
+<p style="font-size:15px;line-height:1.8;color:#2C2C2C">STORY-ENGINE is <strong>two engines in one repository</strong> — independent, runnable on their own, sharing one deterministic audit grammar:</p>
 
 <ul style="font-size:15px;line-height:1.8;color:#2C2C2C">
-  <li><strong>Story Engine (for creators and the general public)</strong> — a long-form novel consistency engine that automatically audits character settings, causal timelines, and memory lines, keeping million-word works consistent in characters, plot, and worldview; it also provides the SPL four-stage narrative editing pipeline. It transforms an editor's intuitive verification into a reusable structured process.</li>
-  <li><strong>Document Review Engine (for enterprises)</strong> — a zero-dependency, offline-capable enterprise-grade document compliance review engine that performs clause-level rule scanning and document-level auditing (element completeness / consistency / rights-obligation parity / formatting) on contracts, regulations, official documents, and general text, and outputs traceable review reports.</li>
+  <li><strong>Story Engine</strong> — a long-form novel consistency engine for creators and the general public. It automatically audits character settings, causal timelines, and memory lines, keeping million-word works consistent in characters, plot, and worldview; it also provides the SPL four-stage narrative editing pipeline. It transforms an editor's intuitive verification into a reusable structured process.</li>
+  <li><strong>Document Review Engine</strong> — a document review engine for enterprise legal and compliance teams. It performs clause-level rule scanning and document-level auditing (element completeness / consistency / rights-obligation parity / formatting) on contracts, regulations, official documents, and general text, and outputs traceable review reports. <strong>The rule kernel is zero-dependency and fully offline-capable</strong>; `Document Engine.py` provides an optional LLM-enhancement entry point.</li>
 </ul>
 
 <p align="center">
@@ -38,64 +39,56 @@
 
 ## ✦ Architecture (Plain Language)
 
-> **In one sentence:** STORY-ENGINE is really **two products in one repo** — one that keeps a million-word novel from contradicting itself, and one that keeps enterprise documents compliant. Both share the same audit grammar.
+> **In one sentence:** one repo, two engines — one keeps a million-word novel from contradicting itself, the other keeps enterprise documents compliant. Both share the same audit grammar, while their data classes are isolated from each other.
 
 ```mermaid
 flowchart TB
     UP["👥 Callers<br/>creators · enterprise legal / compliance · CLI users"]
 
-    CIN["🖋️ Story Engine for Creator.py<br/>input: characters · causal timeline · worldbuilding"]
-    C1["🖋️ Story Engine for Creator.py · ResponsibilityAccount + CognitiveAuditEngine + AuditPlugin<br/>anchor every finding to a responsible party · run pluggable cognitive-audit plugins"]
+    CIN["🖋️ Story Engine<br/>Story Engine for Creator.py<br/>input: characters · causal timeline · worldbuilding"]
+    C1["🖋️ ResponsibilityAccount + CognitiveAuditEngine + AuditPlugin<br/>anchor every finding to a responsible party · run pluggable cognitive-audit plugins"]
     C2["🧹 NarrativeStripper → ImplicitAssumptionDetector<br/>strip rhetorical wording · detect unstated assumptions"]
     C3["⚠️ VulnerabilityAssessor → AutomaticRepairEngine → WorldBuilder<br/>locate fragile points · skip-word repair · extract world settings"]
-    COUT["⭐ Creator-branch output<br/>an accuracy score for the draft"]
+    COUT["⭐ Story Engine output<br/>an accuracy score for the draft"]
 
-    BIN["📐 engine_for_business_v2.2.py<br/>input: business long-form text / draft contracts"]
-    B1["📐 SPL STRIP_NARRATIVE → SCAN_ASSUMPTION<br/>ImplicitAssumptionScanner verifies motivation and plot logic"]
-    B2["🛡️ SPL HEDGE_RISK → LOCK_RESPONSIBILITY<br/>VulnerabilityHedge hedges risk · CausalIntersectionBroker merges worldlines · locks responsibility + quality score"]
-
-    DIN["🏛️ compliance_engine/cli.py → engine.py · audit / list-rules / demo<br/>input: contracts · regulations · official documents · general text"]
+    DIN["🏛️ Document Review Engine<br/>Document Engine.py · compliance_engine/<br/>input: contracts · regulations · official documents · general text"]
     D1["🏛️ compliance_engine/engine.py · _segment + rules.py + rules/*.json<br/>split the text into sections · scan clauses against the rule library"]
     D2["📑 compliance_engine/auditors.py → models.py → report.py<br/>document-level audit (completeness / consistency / parity / format) · anchor responsibility · score · render"]
 
-    SH["🧵 TraceLog + _ENGINE_FINGERPRINT + check_engine_isolation()<br/>every link traceable · aborts at once if the two engines are mixed"]
-    OUT["📄 Report: HTML / JSON / Markdown<br/>every finding carries its responsible party"]
-    HUMAN["✍️ Human sign-off<br/>the final call stays outside the algorithm"]
+    SH["🧵 TraceLog + _ENGINE_FINGERPRINT + check_engine_isolation()<br/>full-chain provenance, replayable · mixing the two engines halts immediately"]
+    OUT["📄 Report output: HTML / JSON / Markdown<br/>every finding carries its responsible party"]
+    HUMAN["✍️ Human sign-off<br/>the final verdict stays outside the algorithm"]
 
     UP --> CIN
-    UP --> BIN
     UP --> DIN
     CIN --> C1
     C1 --> C2
     C2 --> C3
     C3 --> COUT
-    BIN --> B1
-    B1 --> B2
     DIN --> D1
     D1 --> D2
     COUT --> SH
-    B2 --> SH
     D2 --> SH
     SH --> OUT
     OUT --> HUMAN
 
-    classDef cUp fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px,color:#424242
-    classDef cIn fill:#E8F0FE,stroke:#4285F4,stroke-width:1px,color:#173A66
-    classDef cCore fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px,color:#5B4614
-    classDef cSide fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px,color:#4A235A
-    classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px,color:#14512B
+    classDef cUp fill:#F5F5F5,stroke:#9E9E9E,stroke-width:1px;color:#424242
+    classDef cIn fill:#E8F0FE,stroke:#4285F4,stroke-width:1px;color:#173A66
+    classDef cCore fill:#FFF8E1,stroke:#C9A96E,stroke-width:1px;color:#5B4614
+    classDef cSide fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px;color:#4A235D
+    classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px;color:#14512B
     class UP cUp
-    class CIN,BIN,DIN cIn
-    class C1,C2,C3,B1,B2,D1,D2 cCore
+    class CIN,DIN cIn
+    class C1,C2,C3,D1,D2 cCore
     class SH cSide
     class COUT,OUT,HUMAN cOut
 ```
 
-**How to read it**
+**How to read this diagram**
 
-1. **Top to bottom: three entries, one spine.** Callers feed three separate branches — creator, business and enterprise — and every branch ends in the same shared trace layer and the same three report formats.
-2. **Every box names a real file or class.** `Story Engine for Creator.py`, `engine_for_business_v2.2.py`, `compliance_engine/engine.py`, `auditors.py`, `models.py`, `report.py` — open the source and read along.
-3. **The enterprise branch is the hard boundary.** It never calls an LLM: it is a pure JSON rule library (`rules/*.json`), runs fully offline, and a rule hit is judged immediately and deterministically.
+1. **Top to bottom: two entries, one spine.** Callers enter either the Story Engine branch or the Document Review Engine branch; both converge on the same provenance layer and emit the same three report formats.
+2. **Every box names a real file or class.** `Story Engine for Creator.py`, `Document Engine.py`, `compliance_engine/engine.py`, `auditors.py`, `models.py`, `report.py` — check them against the source directly.
+3. **The Document Review Engine is the hardest boundary.** Its rule kernel uses no model at all: a pure JSON rule library (`rules/*.json`), offline-capable, deterministic on a hit. `Document Engine.py` is only an optional LLM-enhancement layer — the engine runs complete without it.
 
 📖 Every term explained in one plain sentence → [Glossary](./GLOSSARY.md)
 
@@ -103,14 +96,14 @@ flowchart TB
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
-STORY-ENGINE consists of two independent products, each targeting a different user group:
+One repository, two engines, each aimed at a different audience:
 
-| Product | Target Users | Module | Typical Input |
-|------|----------|------|----------|
-| **Story Engine** | Creators / general public | `Story Engine for Creator.py` + `engine for business.py` | Characters / causal timeline / worldview / narrative elements |
-| **Document Review Engine** | Enterprises | `compliance_engine/` | Contracts / regulations / official documents / general text |
+| Engine | Audience | Modules | Typical input |
+|---|---|---|---|
+| **Story Engine** | Creators / general public | `Story Engine for Creator.py` · `prose_bridge.py` · `shuihu_llm_audit.py` | characters / causal timeline / worldbuilding / narrative elements |
+| **Document Review Engine** | Enterprise legal / compliance | `compliance_engine/` (rule kernel, offline, zero-dependency) + `Document Engine.py` (optional LLM enhancement) | contracts / regulations / official documents / general text |
 
-Both products share the same **deterministic audit design language** — responsibility-loop anchoring (`ResponsibilityAccount`), risk grading, and full-chain traceable logs. The Document Review Engine is a relatively independent offline rule module that **does not depend on LLMs** — pure rule base, zero third-party dependencies, runs offline, dedicated to enterprise document compliance scenarios.
+Both engines share one **deterministic audit design language** — accountability anchoring (`ResponsibilityAccount`), risk grading, and a fully traceable log. The Document Review Engine's rule kernel **does not depend on an LLM** — pure rule library, zero third-party dependencies, offline-capable, built for enterprise document compliance.
 
 </div>
 
@@ -124,9 +117,16 @@ git clone https://github.com/nohn3043-arch/story-engine.git
 # Mirror: Gitee
 # git clone https://gitee.com/sjiun/Story-engine.git
 cd Story-engine
-# Pure Python >=3.8. Engine files intentionally use space-separated names.
-python "Story Engine for Creator.py"      # creator-facing second-perspective cognitive audit engine
-# or: python "engine for business.py"     # SPL four-stage editorial pipeline
+# Pure Python >= 3.8. Engine files deliberately use space-separated names.
+
+# ── Engine one: Story Engine ──
+python "Story Engine for Creator.py"      # long-form narrative consistency audit
+
+# ── Engine two: Document Review Engine ──
+python -m compliance_engine audit --type contract --input contract.txt --output report.html
+python -m compliance_engine audit --type regulation --input policy.txt --format json
+python -m compliance_engine list-rules --type contract
+python -m compliance_engine demo
 ```
 
 <p align="center">— ✦ —</p>
@@ -135,43 +135,43 @@ python "Story Engine for Creator.py"      # creator-facing second-perspective co
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
-STORY-ENGINE consists of two products, each serving a different user group:
+One repository, two engines, each serving a different audience:
 
-### Story Engine (for creators and the general public)
+### Engine one · Story Engine (for creators and the general public)
 
-A long-form novel consistency engine that transforms an editor's intuitive verification into a reusable structured process. It has two layers:
+A long-form novel consistency engine that turns an editor's intuitive verification into a reusable structured process:
 
-- **Creator Engine** (`Story Engine for Creator.py`) — the narrative-facing cognitive audit layer:
-  - `ResponsibilityAccount` — every check is anchored to a named responsibility node (who / role / stage).
+- **Creator engine** (`Story Engine for Creator.py`) — the narrative-facing cognitive audit layer:
+  - `ResponsibilityAccount` — every check is anchored to a named accountable node (who / role / stage).
   - `CognitiveAuditEngine` + pluggable `AuditPlugin` + `EmotionalConstraint` — composable audit dimensions.
   - `CausalNode` carries `implicit_assumptions` and `vulnerability_score` — tracks *because → therefore* logic and quantifies fragility.
   - `NarrativeStripper` / `ImplicitAssumptionDetector` / `VulnerabilityAssessor` — the second-perspective operator pipeline.
-  - `AutomaticRepairEngine` (full jump-word repair) / `UltimateCausalNovelEngine` / `SecondPerspectiveCausalEngine` / `WorldBuilder` (token-level worldview extraction) — the repair, whole-book audit, and worldview construction layer.
-- **Business Engine** (`engine for business.py`) — the SPL four-stage native reasoning pipeline:
-  1. `STRIP_NARRATIVE` — identify narrative elements (foreshadowing / twist / climax / setup).
-  2. `SCAN_ASSUMPTION` — `ImplicitAssumptionScanner` verifies motivation and plot logic.
-  3. `HEDGE_RISK` — `VulnerabilityHedge` flags OOC, logic holes, and pacing issues; `CausalIntersectionBroker` merges worldlines.
-  4. `LOCK_RESPONSIBILITY` — output a quality score with traceable optimizations.
-  - Risk levels: `SAFE` / `WARNING` / `CRITICAL` / `FATAL`; node states: `RAW` / `STRIPPED` / `AUDITED` / `PRUNED` / `ACTIVE`.
-  - `SPLStoryGenerationEngine` + `StylisticScribe` drive generation; `DeepSeekProvider` / `MockLLM` are replaceable LLM backends.
+  - `AutomaticRepairEngine` (full skip-word repair) / `UltimateCausalNovelEngine` / `SecondPerspectiveCausalEngine` / `WorldBuilder` (token-level worldview extraction) — repair, whole-book audit, and worldbuilding layers.
+- **Prose bridge** (`prose_bridge.py`) and **corpus audit** (`corpus_fetch.py` / `corpus_audit_report.py` / `shuihu_llm_audit.py`) — generation and bulk corpus verification layers.
 
-### Document Review Engine (for enterprises)
+### Engine two · Document Review Engine (for enterprise legal / compliance)
 
-An enterprise-grade document compliance review engine (`compliance_engine/`), zero-dependency and runs offline:
+An enterprise document compliance review engine in two parts:
 
-- Supports clause-level rule scanning + document-level auditing (element completeness / consistency / rights-obligation parity / formatting) for four document types: contracts / regulations / official documents / general text.
-- `ComplianceEngine` orchestration: sectioning → rule scanning → document-level audit → responsibility loop → scoring → report.
-- `ResponsibilityAccount` responsibility-loop anchoring + `TraceLog` full-chain traceability; judgments are deterministic (hit = verdict), no probability output.
-- `RuleEngine` loads a pure JSON rule base (externally extensible via `--rules-dir`); four `Auditor` classes complement clause-level hits.
-- Reports support three formats: HTML (visualization) / JSON (structured) / Markdown (archiving); full CLI: `audit` / `list-rules` / `demo`.
+- **Rule kernel** (`compliance_engine/`) — zero-dependency, offline:
+  - Clause-level rule scanning plus document-level auditing (element completeness / consistency / rights-obligation parity / formatting) across four document types (contract / regulation / official document / general text).
+  - `ComplianceEngine` orchestrates: segment → rule scan → document audit → accountability close → score → report.
+  - `ResponsibilityAccount` accountability anchoring + `TraceLog` full-chain provenance; verdicts are deterministic (a hit decides), with no probabilistic output.
+  - `RuleEngine` loads a pure JSON rule library (extensible via `--rules-dir`); four `Auditor` classes add clause-level hits.
+  - Reports in three formats: HTML (visual) / JSON (structured) / Markdown (archival); full CLI: `audit` / `list-rules` / `demo`.
+- **LLM enhancement entry** (`Document Engine.py`) — optional layer:
+  - Defines the `LLMProvider` protocol; any class implementing it can be injected into the engine.
+  - Ships `OpenAIProvider`: calls OpenAI-compatible endpoints (`gpt-4o` / `deepseek-chat`, etc.) via `urllib`, **zero external dependencies**.
+  - With no LLM configured, the rule kernel runs complete on its own.
 
-Both products share the same deterministic audit design language (responsibility-loop anchoring, risk grading, full-chain traceability), but target creative narrative and enterprise document scenarios respectively.
+Both engines share one deterministic audit design language (accountability anchoring, risk grading, full-chain provenance) while serving narrative creation and enterprise document compliance respectively.
 
-**Robustness hardening (2026-08 fixes)**:
-- **Character-name plausibility filter** — `_extract_plausible_name` excludes pronouns / verb phrases / weather-scene words, preferring absence over noise: `"坚持己见" → ""`, `"他说：我们走吧" → ""`, `"林夏在评审会上坚持自研方案" → "林夏"`.
-- **Token-level worldbuilding extraction** — `WorldBuilder` pre-tokenizes on connectives / punctuation, then matches whole words with longest-suffix priority: `"青云宗与魔道势力在苍云大陆" → factions ["青云宗","魔道势力"], geography ["苍云大陆"]`, connectives are no longer swallowed.
-- **Full-text revision replacement** — `AutomaticRepairEngine` replaces all stiff transition words at once (`突然 / 莫名 / 鬼使神差 …`) and merges adjacent duplicate transition phrases.
-- **Engine isolation detection** — both engines embed `_ENGINE_FINGERPRINT` and `check_engine_isolation()`: mixing both in one process warns immediately, preventing data corruption and crashes caused by homonymous but heterogeneous data classes (`CausalNode` / `ResponsibilityAccount`, etc.) overwriting each other.
+**Robustness hardening (fixed 2026-08)**:
+
+- **Name plausibility filtering** — `_extract_plausible_name` excludes pronouns / verb phrases / weather-scene words; absence is preferred over noise: `"坚持己见" → ""`, `"他说：我们走吧" → ""`, `"林夏在评审会上坚持自研方案" → "林夏"`.
+- **Token-level worldview extraction** — `WorldBuilder` pre-tokenizes on connectives and punctuation, then matches whole words with longest-suffix priority: `"青云宗与魔道势力在苍云大陆" → factions ["青云宗","魔道势力"], geography ["苍云大陆"]` — connectives are no longer swallowed.
+- **Full-text revision replacement** — `AutomaticRepairEngine` replaces all stiff transition words (`突然 / 莫名 / 鬼使神差 …`) at once and merges adjacent duplicate transitions.
+- **Engine isolation detection** — both engines embed `_ENGINE_FINGERPRINT` and `check_engine_isolation()`: mixing them in one process raises an immediate warning, preventing same-named but heterogeneous data classes (`CausalNode` / `ResponsibilityAccount`, etc.) from overwriting each other and corrupting or crashing the run.
 
 </div>
 
@@ -181,31 +181,21 @@ Both products share the same deterministic audit design language (responsibility
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
+The Document Review Engine's rule kernel can be used directly as a library:
+
 ```python
-import importlib.util
+from compliance_engine.engine import ComplianceEngine
+from compliance_engine.models import DocType
+from compliance_engine.report import to_html, to_json, to_markdown
 
-def load(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
-
-biz = load("biz", "engine for business.py")
-print([s.name for s in biz.SPLStage])   # STRIP_NARRATIVE … LOCK_RESPONSIBILITY
-
-# Engine isolation detection: clear warning when both engines are mixed
-# (both engines register a fingerprint in sys.modules; any load path is detectable)
-for conflict in biz.check_engine_isolation():
-    print(f"⚠️ {conflict}")
+engine = ComplianceEngine()                      # loads built-in rules/*.json by default
+report = engine.audit(open("contract.txt", encoding="utf-8").read(), DocType.CONTRACT, title="Purchase Agreement")
+print(to_json(report))
 ```
 
-Or run the built-in engines directly:
+An external rule library can be swapped in with `ComplianceEngine(rules_dir=Path("my-rules"))`, or `--rules-dir` from the CLI.
 
-```bash
-python "Story Engine for Creator.py"
-python "engine for business.py"
-python -m compliance_engine audit --type contract --input contract.txt --output report.html
-python -m compliance_engine list-rules --type regulation
-python -m compliance_engine demo
-```
+When LLM enhancement is wanted, implement the `LLMProvider` protocol from `Document Engine.py` and inject it; without it the engine runs fully offline.
 
 </div>
 
@@ -215,50 +205,39 @@ python -m compliance_engine demo
 
 ```
 STORY-ENGINE/
-├── Story Engine for Creator.py    # creator-facing narrative cognitive audit engine
-├── engine for business.py         # SPL four-stage editorial + contract-review pipeline
-├── compliance_engine/             # enterprise document compliance audit engine (offline, zero-dep)
+├── Story Engine for Creator.py    # Engine one · Story Engine (long-form narrative consistency audit)
+├── prose_bridge.py                # prose bridge / generation layer
+├── shuihu_llm_audit.py            # corpus audit (LLM-assisted)
+├── corpus_fetch.py                # corpus fetching
+├── corpus_audit_report.py         # corpus audit report
+├── shuihu_builtin_audit_sample.md # built-in audit sample
+├── Document Engine.py             # Engine two · LLM enhancement entry (LLMProvider protocol + OpenAIProvider)
+├── compliance_engine/             # Engine two · rule kernel (offline, zero-dependency)
 │   ├── engine.py / models.py / auditors.py / rules.py / report.py
 │   ├── cli.py                     # audit / list-rules / demo
 │   ├── rules/                     # contract.json / regulation.json / official_doc.json / common.json
 │   └── demo.py
 ├── assets/                        # banner.svg/png, overview.svg/png
+├── GLOSSARY.md                    # glossary
 └── LICENSE
 ```
 
 <p align="center">— ✦ —</p>
 
-## ✦ Ecosystem
-
-STORY-ENGINE is a member of the NOHN AI ecosystem — a family of projects built around second-perspective causal auditing and deterministic execution:
-
-| Project | Repo | Positioning |
-|---|---|---|
-| **Second-Perspective (GCAE)** | [nohn3043-arch/second-perspective](https://github.com/nohn3043-arch/second-perspective) | Global cognitive audit engine — five-operator causal audit core (IMDA 95/100) |
-| **NOMOS** | [nohn3043-arch/second-perspective](https://github.com/nohn3043-arch/second-perspective) (`Intelligent-Decision-Hub--Nomos` branch) | Auditable deterministic decision hub (IMDA 95/100) |
-| **SPL-G1** | [nohn3043-arch/SPL-G1](https://github.com/nohn3043-arch/SPL-G1) | Hardware causal-audit trusted computing unit (TCU) |
-| **SPL-Virtual-World-Base** | [nohn3043-arch/Second-Reality](https://github.com/nohn3043-arch/Second-Reality) | Virtual-world & metaverse infrastructure (constitution / law / bridge) |
-| **Story-Engine** | [nohn3043-arch/story-engine](https://github.com/nohn3043-arch/story-engine) | Story Engine (creators/public) + Document Review Engine (enterprise) |
-| **Antares** | [nohn3043-arch/Antares](https://github.com/nohn3043-arch/Antares) | GFSIP v1.0 — causally-audited federated stable interoperability protocol |
-| **Anthropomorphic-Agent-Engine** | [nohn3043-arch/Anthropomorphic-Agent-Engine](https://github.com/nohn3043-arch/Anthropomorphic-Agent-Engine) | Deterministic anthropomorphic psychology engine (SPL Pure Core V8.0) |
-| **PAGES** | [nohn3043-arch/pages](https://github.com/nohn3043-arch/pages) | NOHN AI ecosystem official landing page |
-
-<p align="center">— ✦ —</p>
-
 ## ✦ License & Authorization
 
-This repository is **not open source** and adopts a dual-track model: free for personal non-commercial research; government / enterprises require a paid commercial license. See [LICENSE](./LICENSE).
+This repository is <strong>not open source</strong>. Dual-track model: free for personal non-commercial research; government / enterprise use requires a paid commercial license. See [LICENSE](./LICENSE).
 
 | User | Purpose | License requirement |
 |---|---|---|
 | Individual (natural person) | Non-commercial academic research / study / personal experiments | **Free** under [LICENSE](./LICENSE) "Personal Free Research License" |
-| Government agency / public institution / enterprise | Any purpose (incl. internal deployment, product development, service provision) | **Paid commercial license required in advance** |
+| Government agency / public institution / enterprise | Any purpose (including internal deployment, product development, service provision) | **Paid commercial license required in advance** |
 
-- **Individual researchers** may use it free for non-commercial research, but not for any commercial purpose, nor may they provide services to any enterprise or government agency.
+- **Individual researchers** may use it free for non-commercial research, but may not use it for any commercial purpose, nor provide services to any enterprise or government agency.
 - **Government / enterprise users** may not copy, deploy, run, integrate, or distribute this work before signing a commercial license agreement and paying the agreed fee.
-- **Apply for license**: International / Global — [ai@nohnlins.com](mailto:ai@nohnlins.com) · China — [lin@secondai.top](mailto:lin@secondai.top)
+- **Apply for a license**: International / Global — [ai@nohnlins.com](mailto:ai@nohnlins.com) · China — [lin@secondai.top](mailto:lin@secondai.top)
 
-The licensor, applicable law, and dispute resolution follow [LICENSE](./LICENSE) based on the user's location: users within China → Shanghai Linming Junhua Technology Co., Ltd. (PRC law); users outside China → NOHN AI TECHNOLOGY PTE. LTD. (Singapore law, SIAC arbitration).
+The licensor, applicable law, and dispute resolution are determined by the user's location per [LICENSE](./LICENSE): users within China → Shanghai Linming Junhua Technology Co., Ltd. (PRC law); users outside China → NOHN AI TECHNOLOGY PTE. LTD. (Singapore law, SIAC arbitration).
 
 <p align="center">
   <a href="https://github.com/nohn3043-arch">GitHub</a>
@@ -267,4 +246,4 @@ The licensor, applicable law, and dispute resolution follow [LICENSE](./LICENSE)
   &nbsp;·&nbsp;
   <a href="mailto:ai@nohnlins.com">ai@nohnlins.com</a>
 </p>
-<p align="center"><sub>NOHN AI · STORY-ENGINE</sub></p>
+<p align="center"><sub>NOHN AI · STORY-ENGINE (Story Engine · Document Review Engine)</sub></p>

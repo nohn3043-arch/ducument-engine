@@ -994,6 +994,7 @@ class ForeshadowLedger:
             hits = [w for w in _FORESHADOW_PAY_HINTS if w in text]
             action_word = max(hits, key=len)
         tail = text[text.rfind(action_word) + len(action_word):]
+        topic = ""  # 修复：主题切分结果全空时 topic 未赋值即返回，抛 UnboundLocalError
         for seg in _FORESHADOW_TOPIC_SPLIT.split(tail):
             seg = seg.strip(" 的了")
             if seg:
@@ -1102,6 +1103,41 @@ def _hash_block(prev_hash: str, payload: Any) -> str:
         body = str(payload)
     digester.update(body.encode("utf-8"))
     return digester.hexdigest()
+
+
+# 哈希载荷中的随机字段（uuid4/uuid1 派生）：不参与内容哈希
+_NONDET_HASH_KEYS = ("node_id", "nonce", "audit_timestamp", "last_updated")
+# uuid 派生 id 的形态（8 位小写 hex）；确定性序号如 "E001"、中文内容字段均不匹配
+_UUID_ID_RE = re.compile(r"^[0-9a-f]{8}$")
+
+
+def _looks_uuid(v: Any) -> bool:
+    """值形态是否 uuid 派生（8 位小写 hex）。"""
+    return isinstance(v, str) and bool(_UUID_ID_RE.match(v))
+
+
+def _strip_nondeterminism(obj: Any) -> Any:
+    """递归剥离载荷中的随机字段，替换为固定占位，使「同内容 → 同哈希」。
+
+    根因：报告内含 uuid4/uuid1 派生的 node_id / nonce / audit_timestamp /
+    last_updated，以及 parse_outline_to_nodes 用 uuid 生成的 chain[*].id、
+    anchors[*].event_id、causal.weakest_variable——同一文本重复审计会得到不同
+    audit_hash，哈希链只能证明「本次运行内部链不断」，不能证明「内容未被改动」，
+    与可信存证目标矛盾。
+    本函数在入哈希前统一剥离这些字段；内容字段（premise/conclusion/character/
+    dangling/assumptions 及 E001 式序号）全部保留参与哈希。
+    """
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if k in _NONDET_HASH_KEYS or _looks_uuid(v):
+                out[k] = "<NONDET>"
+            else:
+                out[k] = _strip_nondeterminism(v)
+        return out
+    if isinstance(obj, (list, tuple)):
+        return [_strip_nondeterminism(x) for x in obj]
+    return obj
 
 
 # =============================================================================
@@ -2286,8 +2322,14 @@ Output the revised passage only."""
         return self._stamp_audit_hash(report)
 
     def _stamp_audit_hash(self, report: Dict[str, Any]) -> Dict[str, Any]:
-        """P2 哈希链存证：把本块报告串进引擎级哈希链，输出该块哈希与前驱哈希。"""
-        report["audit_hash"] = _hash_block(self.audit_chain_prefix, report)
+        """P2 哈希链存证：把本块报告串进引擎级哈希链，输出该块哈希与前驱哈希。
+
+        哈希前先剥离随机字段（见 _strip_nondeterminism）——否则载荷中的
+        uuid4/uuid1 派生值会让同一文本重复审计得到不同哈希，哈希链失去取证价值。
+        """
+        report["audit_hash"] = _hash_block(
+            self.audit_chain_prefix, _strip_nondeterminism(report)
+        )
         report["audit_prev_hash"] = self.audit_chain_prefix
         self.audit_chain_prefix = report["audit_hash"]
         return report

@@ -6,6 +6,32 @@ from dataclasses import asdict, dataclass, field
 from typing import Dict, Any, List, Callable, Optional, Protocol, Tuple
 from collections import defaultdict
 
+# ==================== 语言适配层（协议化：语言相关判定点全部外置）====================
+# 引擎只保留语言无关逻辑（哈希链 / 报告结构 / 五步骨架 / 台账状态机 / 插件框架）；
+# 语言相关常量（词表 / 正则 / 阈值 / 风格族预设）由 adapters/<lang>.py 提供。
+# 部署约束：引擎文件必须与 adapters/ 目录同级，否则启动即报错（不静默回退）。
+import importlib.util as _ilu
+import os as _os
+
+_ADAPTER_LANG = "zh"
+
+
+def _load_language_adapter(lang: str = _ADAPTER_LANG):
+    """加载语言适配器；缺失或加载失败立即抛错，不做静默降级。"""
+    _here = _os.path.dirname(_os.path.abspath(__file__))
+    _path = _os.path.join(_here, "adapters", lang + ".py")
+    if not _os.path.exists(_path):
+        raise ImportError("语言适配器缺失：%s —— 引擎需与 adapters/ 同目录部署" % _path)
+    _spec = _ilu.spec_from_file_location("story_engine_adapter_" + lang, _path)
+    _mod = _ilu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    return _mod
+
+
+_LZ = _load_language_adapter()
+# ==================== 语言适配层结束 ====================
+
+
 # ==================== 引擎隔离防护 ====================
 # 本文件是 Creator 引擎。同目录「engine for business.py」是 Business 引擎。
 # 两个引擎含多个同名异构数据类（CausalNode / ResponsibilityAccount / ImplicitAssumption /
@@ -264,86 +290,11 @@ class NarrativeStripper:
     """
 
     # 标点/空白（全角 + 半角 + 常见引号、书名号）
-    _PUNCT_RE = re.compile(
-        r"[，。！？；：、,.!?;:()（）【】\[\]《》〈〉“”‘’\"'…—\s]+"
-    )
+    _PUNCT_RE = _LZ._PUNCT_RE
 
     # 动作词表：长词在前，保证最长匹配
-    _ACTION_WORDS = (
-        "留在原地",
-        "追上去",
-        "拉黑",
-        "离开",
-        "生气",
-        "难过",
-        "说道",
-        "笑道",
-        "哭道",
-        "怒道",
-        "喝道",
-        "骂道",
-        "叹道",
-        "看见",
-        "听到",
-        "听见",
-        "追赶",
-        "走进",
-        "走出",
-        "走来",
-        "走去",
-        "起身",
-        "落座",
-        "拱手",
-        "作揖",
-        "下拜",
-        "拜见",
-        "拍案",
-        "回头",
-        "转身",
-        "开口",
-        "沉默",
-        "点头",
-        "摇头",
-        "打",
-        "跑",
-        "走",
-        "看",
-        "说",
-        "哭",
-        "笑",
-        "喊",
-        "叫",
-        "坐",
-        "立",
-        "站",
-        "跪",
-        "拜",
-        "喝",
-        "骂",
-        "叹",
-        "提",
-        "拿",
-        "取",
-        "放",
-        "掷",
-        "砍",
-        "杀",
-        "斗",
-        "战",
-        "退",
-        "进",
-        "追",
-        "寻",
-        "送",
-        "迎",
-        "辞",
-        "别",
-        "归",
-        "回",
-    )
-    _ACTION_RE = re.compile(
-        r"([\u4e00-\u9fa5]{1,4})(" + "|".join(map(re.escape, _ACTION_WORDS)) + r")"
-    )
+    _ACTION_WORDS = _LZ._ACTION_WORDS
+    _ACTION_RE = _LZ._ACTION_RE
 
     @classmethod
     def strip(cls, text: str) -> Dict[str, Any]:
@@ -378,9 +329,16 @@ class NarrativeStripper:
         sentences = [
             s.strip() for s in re.split(r"(?<=[。！？!?；;…])", text) if s.strip()
         ]
+        # 角色名判定优先级：外部词表 names（如红楼梦人物词表/姓名集）→ 内置正则兜底。
+        # 严格词表模式：一旦提供 names，句中无命中即留空——宁可判「未知」，也不让
+        # _extract_plausible_name 兜底产出「第三」「本係此」式伪角色名。实测红楼梦
+        # 第 003 回 305 句中 238 句悬空，主因即该兜底把句首短语误认为人名。
+        strict = bool(names)
         events: List[Dict[str, Any]] = []
         for i, sent in enumerate(sentences):
-            char = cls._name_in(sent, names) or _extract_plausible_name(sent)
+            char = cls._name_in(sent, names)
+            if not char and not strict:
+                char = _extract_plausible_name(sent)
             events.append(
                 {
                     "id": f"E{start_id + i:03d}",
@@ -494,32 +452,11 @@ class AutomaticStateExtractor:
 
 class AutomaticRepairEngine:
     # 生硬转折词表（长词在前，保证正则优先匹配最长形态）
-    _JUMP_WORDS = (
-        "突然之间",
-        "突然间",
-        "突然地",
-        "突然",
-        "莫名地",
-        "莫名的",
-        "莫名其妙地",
-        "莫名其妙",
-        "莫名",
-        "毫无理由地",
-        "毫无理由",
-        "不知怎么地",
-        "不知怎么",
-        "鬼使神差地",
-        "鬼使神差",
-        "无缘无故地",
-        "无缘无故",
-        "毫无征兆地",
-        "毫无征兆",
-        "说变就变",
-    )
-    _JUMP_PATTERN = re.compile("|".join(re.escape(w) for w in _JUMP_WORDS))
-    _TRANSITION = "伴随着情绪的沉淀，顺理成章地"
+    _JUMP_WORDS = _LZ._JUMP_WORDS_ARE
+    _JUMP_PATTERN = _LZ._JUMP_PATTERN
+    _TRANSITION = _LZ._TRANSITION
     # 连续重复的过渡短语（如「…顺理成章地顺理成章地…」）合并为一个
-    _DUP_TRANSITION = re.compile(re.escape(_TRANSITION) + r"{2,}")
+    _DUP_TRANSITION = _LZ._DUP_TRANSITION
 
     @staticmethod
     def repair(
@@ -630,247 +567,15 @@ h1 {{ color: #2c3e50; border-bottom: 2px solid #3498db; }}
 
 # ==================== 新增：自然语言解析与自动角色注册 ====================
 # —— 角色名候选噪声过滤（防「坚持己见→坚持己」「他说→他说」式乱认）——
-_NAME_PRONOUN_HEADS = (
-    "他",
-    "她",
-    "它",
-    "我",
-    "你",
-    "咱",
-    "吾",
-    "汝",
-    "其",
-    "这",
-    "那",
-    "我们",
-    "你们",
-    "他们",
-    "她们",
-    "它们",
-)
+_NAME_PRONOUN_HEADS = _LZ._NAME_PRONOUN_HEADS
 # 古白话人称/指代扩展（防「某便道」「此人道」被当作角色名）
-_NAME_PRONOUN_HEADS = _NAME_PRONOUN_HEADS + (
-    "某",
-    "彼",
-    "此",
-    "俺",
-    "妾",
-    "奴",
-    "臣",
-    "朕",
-    "孤",
-    "寡人",
-    "尔等",
-    "汝等",
-    "我等",
-    "你等",
-)
-_NAME_VERB_HEADS = (
-    "说",
-    "道",
-    "问",
-    "答",
-    "喊",
-    "叫",
-    "想",
-    "看",
-    "听",
-    "走",
-    "跑",
-    "来",
-    "去",
-    "是",
-    "有",
-    "在",
-    "坚持",
-    "认为",
-    "觉得",
-    "决定",
-    "意识",
-    "同意",
-    "评估",
-    "梳理",
-    "分析",
-    "理解",
-    "发现",
-    "感到",
-    "知道",
-    "离开",
-    "来到",
-    "回到",
-    "前往",
-    "看见",
-    "听到",
-    "想起",
-    "望着",
-    "看着",
-    "听见",
-    "点头",
-    "摇头",
-    "沉默",
-    "开口",
-    "转身",
-    "回头",
-    "抬头",
-    "低头",
-    "坐下",
-    "起身",
-    "推开",
-    "关上",
-    "拿起",
-    "放下",
-    "掏出",
-    "停下",
-    "愣住",
-    "怔住",
-    "惊醒",
-    "醒来",
-    "出门",
-    "进屋",
-)
+_NAME_PRONOUN_HEADS = _LZ._NAME_PRONOUN_HEADS
+_NAME_VERB_HEADS = _LZ._NAME_VERB_HEADS
 # 古白话功能词/场景词开头（防「且请坐」「日天色」被当作角色名）
-_NAME_VERB_HEADS = _NAME_VERB_HEADS + (
-    "且",
-    "请",
-    "若",
-    "既",
-    "但",
-    "莫",
-    "休",
-    "须",
-    "待",
-    "不",
-    "无",
-    "有",
-    "日",
-    "月",
-    "天",
-    "地",
-    "风",
-    "雨",
-    "雪",
-    "云",
-    "却",
-    "遂",
-    "乃",
-    "便",
-    "即",
-    "又",
-    "也",
-    "都",
-    "只",
-    "就",
-    "正",
-    "先",
-    "忙",
-    "急",
-    "再",
-    "亦",
-    "皆",
-    "俱",
-    "莫",
-    "休",
-    "须",
-    "待",
-    "不",
-    "无",
-)
-_NAME_TAIL_NOISE = (
-    "在",
-    "去",
-    "来",
-    "说",
-    "道",
-    "了",
-    "着",
-    "过",
-    "和",
-    "与",
-    "跟",
-    "吧",
-    "呢",
-    "吗",
-    "啊",
-    "呀",
-    "么",
-    "哈",
-    "哦",
-    "走",
-    "问",
-    "答",
-    "喊",
-    "叫",
-    "想",
-    "看",
-    "听",
-    "见",
-    "一起",
-    "前往",
-    "来到",
-    "回到",
-    "离开",
-    "看着",
-    "梳理",
-    "理",
-    "梳",
-    "意识",
-    "同意",
-    "评估",
-    "决定",
-    "认为",
-    "觉得",
-    "意识到",
-    "发现",
-    "感到",
-    "知道",
-)
+_NAME_VERB_HEADS = _LZ._NAME_VERB_HEADS
+_NAME_TAIL_NOISE = _LZ._NAME_TAIL_NOISE
 # 古白话动作/副词残片（防「武松便」「李逵喝」落到候选名尾部）
-_NAME_TAIL_NOISE = _NAME_TAIL_NOISE + (
-    "便",
-    "即",
-    "遂",
-    "乃",
-    "却",
-    "又",
-    "也",
-    "都",
-    "只",
-    "方",
-    "才",
-    "就",
-    "正",
-    "先",
-    "忙",
-    "急",
-    "再",
-    "亦",
-    "皆",
-    "俱",
-    "喝",
-    "骂",
-    "笑",
-    "哭",
-    "怒",
-    "喜",
-    "叹",
-    "惊",
-    "惧",
-    "骇",
-    "慌",
-    "拜",
-    "揖",
-    "跪",
-    "禀",
-    "报",
-    "应",
-    "回",
-    "唤",
-    "劝",
-    "谏",
-    "扶",
-    "扯",
-    "拱",
-)
+_NAME_TAIL_NOISE = _LZ._NAME_TAIL_NOISE
 # 「状态/副词 + 动词」整块残留（如「李逵大喝」「宋江大怒」「武松便道」）；整块剥除而非逐字
 _NAME_STATE_TAIL = (
     "大喝道",
@@ -1251,32 +956,10 @@ def parse_outline_to_nodes(outline: str) -> List[CausalNode]:
 # P0 唯一真缺口：记录"埋(埋下/铺垫/留下)－收(回收/呼应/揭开/兑现)"全生命周期。
 # 决定论：仅凭显式关键词与主题字符串对账，不臆造"哪些算伏笔"。
 # =============================================================================
-_FORESHADOW_SET_HINTS = (
-    "埋下伏笔",
-    "埋下",
-    "埋伏笔",
-    "留下一句",
-    "留下线索",
-    "暗暗留下",
-    "留下伏笔",
-    "铺下伏笔",
-    "埋线",
-)
-_FORESHADOW_PAY_HINTS = (
-    "回收伏笔",
-    "呼应",
-    "揭开",
-    "真相大白",
-    "兑现",
-    "解释前文",
-    "收回伏笔",
-    "揭开谜底",
-    "原来如此",
-)
+_FORESHADOW_SET_HINTS = _LZ._FORESHADOW_SET_HINTS
+_FORESHADOW_PAY_HINTS = _LZ._FORESHADOW_PAY_HINTS
 # 主题断开符：用于从剧情句里切出"伏笔对象/主题"（取主题词后再校验，非概率）
-_FORESHADOW_TOPIC_SPLIT = re.compile(
-    r"[：:，,。；;！!？?\s]|(?:关于|指向|关于的|就是|在于)"
-)
+_FORESHADOW_TOPIC_SPLIT = _LZ._FORESHADOW_TOPIC_SPLIT
 
 
 class ForeshadowLedger:
@@ -2449,6 +2132,7 @@ Output the revised passage only."""
         narration_mode: Optional[str] = None,
         include_causal: bool = True,
         diff_only: bool = False,
+        known_names: Optional[Any] = None,
     ) -> Dict[str, Any]:
         """对已有文本/大纲做三层审计，输出完整报告。
 
@@ -2461,11 +2145,13 @@ Output the revised passage only."""
         参数：
           text: 待审文本（正文或大纲）
           outline: 可选，因果链来源（优先于从 text 拆解）
-          characters: 角色档案（knowledge/forbidden_knowledge/register_hints）
+          characters: 角色档案（knowledge/forbidden_knowledge/register_hints/aliases）
           narration_mode: 叙事立场覆盖；None 时按 outline 关键词推断
           include_causal: 是否跑五步算子因果层
           diff_only: 增量审计模式（P1）——仅对本次传入的 text 做检查，跳过已累积的
                      全局状态重算，适合编辑单章/碎片的"实时守门"短路径。
+          known_names: 已知角色名/别称表；用于 prose_style 的人名豁免与说话人归属。
+                      红楼梦等别称密集文本传入后可消除言语标记公式类误报。
         返回：结构化报告（含 all_passed 汇总 + 伏笔/时空/哈希字段）。
         """
         char_map = characters or self.global_state.characters
@@ -2476,6 +2162,7 @@ Output the revised passage only."""
             narration_mode=narration_mode,
             outline=outline,
             style_family=self._style_family(),
+            known_names=known_names,
         )
         # —— 层1 因果层（五步算子，对大纲/事件链）——
         causal = None
@@ -2617,21 +2304,10 @@ class SecondPerspectiveCausalEngine:
     def __init__(self, llm_provider: Optional[LLMProvider] = None):
         self.llm_provider = llm_provider
 
-    _COLOCATION_HINTS = [
-        "车站",
-        "站台",
-        "电车",
-        "街道",
-        "房间",
-        "同处",
-        "见面",
-        "相遇",
-        "战场",
-        "广场",
-    ]
-    _MOTION_HINTS = ["追", "跑", "走", "离开", "去", "赶到", "赶来", "冲", "奔"]
-    _COMMS_HINTS = ["发消息", "打电话", "拉黑", "联系", "回复", "微信", "短信", "传讯"]
-    _JUMP_HINTS = ["突然", "莫名", "毫无理由", "不知怎么", "鬼使神差", "突然之间"]
+    _COLOCATION_HINTS = _LZ._COLOCATION_HINTS
+    _MOTION_HINTS = _LZ._MOTION_HINTS
+    _COMMS_HINTS = _LZ._COMMS_HINTS
+    _JUMP_HINTS = _LZ._JUMP_HINTS
 
     @staticmethod
     def _coerce_events(events, names: Optional[Any] = None) -> List[Dict[str, Any]]:
@@ -2679,24 +2355,32 @@ class SecondPerspectiveCausalEngine:
         return out
 
     def narrative_stripping(self, events, names: Optional[Any] = None):
+        coerced = self._coerce_events(events, names)
+        # 人物出场频次预统计（修正「悬空」定义）：角色在链内首次出现是正常引入，
+        # 旧版把首现也判为悬空，导致红楼梦这类群像登场章节（第 003 回引入
+        # 贾母/王夫人/邢夫人/李纨/熙凤等数十人）整章被判 INEVITABLE_COLLAPSE。
+        # 新定义：仅当人物在全链中只出现一次、且不在前提句中时，才判悬空。
+        char_freq: Dict[str, int] = {}
+        for ev in coerced:
+            c = ev.get("character") or ""
+            if c:
+                char_freq[c] = char_freq.get(c, 0) + 1
         chain = []
-        seen_chars = set()
-        for i, ev in enumerate(self._coerce_events(events, names)):
+        for i, ev in enumerate(coerced):
             ev = dict(ev)
             ev.setdefault("id", f"E{i:03d}")
-            ev.setdefault("character", "")
             premise, conclusion = ev.get("premise", ""), ev.get("conclusion", "")
-            char = ev["character"] or self._infer_character(premise + conclusion)
+            char = ev.get("character") or ""
+            # 严格词表模式（提供了 names）下不做正则兜底，未知角色留空由上游判定
+            if not char and not names:
+                char = self._infer_character(premise + conclusion)
             ev["character"] = char
-            dangling = (
+            ev["dangling"] = (
                 bool(char)
                 and (i > 0)
                 and (char not in premise)
-                and (char not in seen_chars)
+                and char_freq.get(char, 0) <= 1
             )
-            if char:
-                seen_chars.add(char)
-            ev["dangling"] = dangling
             chain.append(ev)
         return chain
 
@@ -2844,49 +2528,22 @@ class SecondPerspectiveCausalEngine:
 # =============================================================================
 
 # 叙事立场关键词推断
-_NARRATION_CHRONICLER_KW = [
-    "悬疑", "推理", "侦探", "探案", "刑侦", "罪案", "命案", "凶案", "调查", "审讯", "证词",
-    "档案", "卷宗", "正史", "传记", "纪事", "实录", "编年", "口述", "笔录",
-]
-_NARRATION_LIMITED_KW = ["回忆录", "自传", "成长", "蜕变", "囚徒", "流放", "第一人称", "日记", "书信体"]
-_NARRATION_OMNISCIENT_KW = [
-    "史诗", "神话", "演义", "传奇", "传说", "评书", "说书", "话本", "唱本",
-    "民间故事", "寓言", "童话", "志怪", "神魔",
-]
+_NARRATION_CHRONICLER_KW = _LZ._NARRATION_CHRONICLER_KW
+_NARRATION_LIMITED_KW = _LZ._NARRATION_LIMITED_KW
+_NARRATION_OMNISCIENT_KW = _LZ._NARRATION_OMNISCIENT_KW
 
 # 全知解说腔 / 动机归因模式
-_OMNISCIENT_PATTERNS = [
-    "殊不知", "原来", "事实上", "实际上", "其实他", "其实她", "要知道", "说白了",
-    "说到底", "换句话说", "众所周知", "值得注意的是",
-    "其深层原因", "背后真正的原因是", "不为人知的是", "读者应当知道",
-]
-_EXPLAIN_MOTIVE_PATTERNS = [
-    re.compile(r"他之所以[^，。；]*?是因为"),
-    re.compile(r"她之所以[^，。；]*?是因为"),
-    re.compile(r"他内心真正[^，。；]*?是"),
-    re.compile(r"她内心真正[^，。；]*?是"),
-    re.compile(r"[^，。；]{0,6}做这一切，?是因为"),
-    re.compile(r"[^，。；]{0,6}做这一切，?源于"),
-    re.compile(r"他这么做\s*是\s*因为"),
-    re.compile(r"她这么做\s*是\s*因为"),
-]
+_OMNISCIENT_PATTERNS = _LZ._OMNISCIENT_PATTERNS
+_EXPLAIN_MOTIVE_PATTERNS = _LZ._EXPLAIN_MOTIVE_PATTERNS
 # 允许的有限心理描写词（史官视角下可保留，不算动机归因）
-_ALLOWED_PSYCH = ["心想", "感到", "觉得", "意识到", "明白", "恍然", "暗自"]
+_ALLOWED_PSYCH = _LZ._ALLOWED_PSYCH
 # 台词时代默认禁用词（现代词，可经 world_rules.era_forbidden_words 扩展）
 # 仅保留“时代错位感极强”的词：古风/仙侠/西幻文里出现会瞬间出戏；
 # 商业/都市/科幻题材经 modern_setting 豁免，作者可显式补充 era_forbidden_words 强制生效。
-_ERA_FORBIDDEN_DEFAULT = [
-    "系统", "手机", "电话", "网络", "数据", "系统提示", "心理素质", "效率低", "标准化",
-    "资源整合", "竞争力", "供应链", "互联网", "智能设备", "APP", "公众号",
-    "刷屏", "流量", "直播间", "外卖", "共享单车", "充电宝",
-]
+_ERA_FORBIDDEN_DEFAULT = _LZ._ERA_FORBIDDEN_DEFAULT
 
 # 台词提取（支持三种引号）
-_DIALOGUE_RES = [
-    re.compile(r"“([^”]{1,120})”"),
-    re.compile(r"「([^」]{1,120})」"),
-    re.compile(r'"([^"]{1,120})"'),
-]
+_DIALOGUE_RES = _LZ._DIALOGUE_RES
 
 
 def infer_narration_mode(outline: str) -> Optional[str]:
@@ -2996,6 +2653,34 @@ def audit_dialogue_era(
     }
 
 
+def _build_alias_index(characters: Optional[Dict[str, Any]]) -> Dict[str, str]:
+    """token → 规范角色名；包含角色本名与 profiles 中的 aliases 别称。
+
+    红楼梦类文本别称密集（宝钗/薛宝钗/宝姐姐/蘅芜君），仅按本名匹配会把
+    别称处的台词判为「说话人不明」而整体跳过认知/语域审计。
+    """
+    idx: Dict[str, str] = {}
+    for name in (characters or {}):
+        idx[name] = name
+        prof = (characters or {}).get(name) or {}
+        aliases = prof.get("aliases")
+        if isinstance(aliases, list):
+            for a in aliases:
+                if a and a not in idx:
+                    idx[a] = name
+    return idx
+
+
+def _find_speaker_in_window(window: str, alias_index: Dict[str, str]) -> Optional[str]:
+    """在台词前文窗口内找最近的说话人 token（支持别称），返回规范角色名。"""
+    speaker, last_pos = None, -1
+    for token, canonical in alias_index.items():
+        p = window.rfind(token)
+        if p > last_pos:
+            speaker, last_pos = canonical, p
+    return speaker
+
+
 def audit_dialogue_cognition(
     text: str,
     characters: Optional[Dict[str, Any]],
@@ -3006,28 +2691,24 @@ def audit_dialogue_cognition(
     if not dialogues:
         return {"passed": True, "score": 100, "issues": [], "note": "无台词，跳过认知审计"}
     issues: List[str] = []
-    chars = set()
+    # 说话人候选 = 角色档案 keys + 事件链推断角色；档案缺省时用空 profile 兜底，
+    # 保证仅靠事件链也能完成说话人归属（认知校验需要档案才有内容）。
+    char_profiles: Dict[str, Any] = dict(characters or {})
     if events:
         for ev in events:
-            if ev.get("character"):
-                chars.add(ev["character"])
-    chars.update((characters or {}).keys())
-    # 仅当角色名确实出现在文本中才纳入说话人候选
-    chars = {c for c in chars if c and c in text}
+            if ev.get("character") and ev["character"] not in char_profiles:
+                char_profiles[ev["character"]] = {}
+    # 说话人候选含别称：仅当 token 确实出现在文本中才纳入
+    alias_index = {t: c for t, c in _build_alias_index(char_profiles).items() if t in text}
     for d in dialogues:
         d_pos = text.find(d)
         if d_pos < 0:
             continue
         window = text[max(0, d_pos - 60) : d_pos]
-        speaker = None
-        last_pos = -1
-        for name in chars:
-            p = window.rfind(name)
-            if p > last_pos:
-                speaker, last_pos = name, p
+        speaker = _find_speaker_in_window(window, alias_index)
         if not speaker:
             continue
-        profile = (characters or {}).get(speaker, {}) or {}
+        profile = char_profiles.get(speaker, {}) or {}
         fk = profile.get("forbidden_knowledge")
         if isinstance(fk, list):
             for item in fk:
@@ -3051,7 +2732,7 @@ def audit_dialogue_cognition(
         "passed": len(issues) == 0,
         "score": score,
         "issues": issues,
-        "speakers_matched": len(chars),
+        "speakers_matched": len(alias_index),
     }
 
 
@@ -3081,17 +2762,14 @@ def audit_dialogue_registry(
             if w and w not in word_owner:
                 word_owner[w] = owner
     issues: List[str] = []
+    # 说话人候选含别称（红楼梦宝姐姐/蘅芜君等），仅纳入文本中出现的 token
+    alias_index = {t: c for t, c in _build_alias_index(characters).items() if t in text}
     for d in dialogues:
         pos = text.find(d)
         if pos < 0:
             continue
         window = text[max(0, pos - 60) : pos]
-        speaker = None
-        last_pos = -1
-        for name in (characters or {}):
-            p = window.rfind(name)
-            if p > last_pos:
-                speaker, last_pos = name, p
+        speaker = _find_speaker_in_window(window, alias_index)
         if not speaker:
             continue
         for w, owner in word_owner.items():
@@ -3133,51 +2811,21 @@ class ProseStyleAuditor:
     阈值集中在 _THRESHOLDS，按文库调参。
     """
 
-    _CLASSICAL_CHARS = "之乎者也矣焉哉夫其而于所与及以若者乃遂辄弗尝兮"
-    _EASTERN_WORDS = [
-        "遂", "乃", "吾", "汝", "妾", "卿", "陛下", "公子", "娘子", "阁下",
-        "府上", "在下", "贫道", "贫僧", "施主", "道友", "仙尊", "圣上",
-    ]
-    _MODERN_NETSLANG = [  # 纯网语/口语化过度词：在正常叙事（古今）均属文风漂移
-        "绝了", "yyds", "破防", "栓Q", "家人们", "属实", "简直了", "我裂开", "好吧",
-    ]
-    _MODERN_OBJECTS = ["手机", "微信", "电脑", "老板", "公司", "OK", "WiFi", "视频"]
-    _PERCEPTION_VB = [
-        "想", "心想", "暗自", "觉得", "感到", "意识到", "看见", "听到",
-        "猜测", "以为", "知道", "希望", "害怕", "明白",
-    ]
-    _ABSTRACT_TELL = [
-        "感到", "觉得", "似乎", "仿佛", "好像", "意识到", "认为", "知道",
-        "显得", "看起来", "让人", "令人",
-    ]
-    _REDUNDANT_PAIRS = ["的的", "了了", "着呢", "是在", "的了", "着的"]
-    _VIRTUAL_CHARS = "的了着在是于把被给"
+    _CLASSICAL_CHARS = _LZ._CLASSICAL_CHARS_PSA
+    _EASTERN_WORDS = _LZ._EASTERN_WORDS
+    _MODERN_NETSLANG = _LZ._MODERN_NETSLANG
+    _MODERN_OBJECTS = _LZ._MODERN_OBJECTS
+    _PERCEPTION_VB = _LZ._PERCEPTION_VB
+    _ABSTRACT_TELL = _LZ._ABSTRACT_TELL
+    # 赘余对仅在现代语体族下计罚。
+    # 根因：「的了」「是在」「着呢」「着的」在古白话中是合法组合（红楼梦实例：
+    # 「放心的了」「或是在你舅舅处」）；「的的」在韵文中是合法形容词叠用
+    # （第 005 回警幻赋「耀珠翠之的的兮」，的的=鲜明貌，120 回仅 3 次）。
+    # 古典族下按子串匹配会把正常文本判为赘余（实测 5/5 章假失败），故改为族条件计罚。
+    _REDUNDANT_PAIRS_MODERN = _LZ._REDUNDANT_PAIRS_MODERN
+    _VIRTUAL_CHARS = _LZ._VIRTUAL_CHARS
 
-    _THRESHOLDS = {
-        "eastern_ancient": {"virtual_density": 0.30, "fourchar_density": 0.06,
-                            "rhythm_cv": 0.30, "tell_density": 0.32, "repeat_window": 6},
-        "western_plain":   {"virtual_density": 0.22, "fourchar_density": 0.02,
-                            "rhythm_cv": 0.40, "tell_density": 0.35, "repeat_window": 5},
-        "unknown":         {"virtual_density": 0.25, "fourchar_density": 0.04,
-                            "rhythm_cv": 0.35, "tell_density": 0.33, "repeat_window": 5},
-        # —— 扩展审查族（A：支持更多文风校验）——
-        "wuxia":           {"virtual_density": 0.32, "fourchar_density": 0.08,
-                            "rhythm_cv": 0.30, "tell_density": 0.30, "repeat_window": 6},
-        "xianxia":         {"virtual_density": 0.33, "fourchar_density": 0.09,
-                            "rhythm_cv": 0.28, "tell_density": 0.28, "repeat_window": 6},
-        "classical_poetry": {"virtual_density": 0.38, "fourchar_density": 0.14,
-                            "rhythm_cv": 0.25, "tell_density": 0.22, "repeat_window": 5},
-        "scifi":           {"virtual_density": 0.22, "fourchar_density": 0.02,
-                            "rhythm_cv": 0.42, "tell_density": 0.35, "repeat_window": 5},
-        "webnovel":        {"virtual_density": 0.24, "fourchar_density": 0.03,
-                            "rhythm_cv": 0.38, "tell_density": 0.40, "repeat_window": 5},
-        "hardboiled":      {"virtual_density": 0.18, "fourchar_density": 0.01,
-                            "rhythm_cv": 0.45, "tell_density": 0.30, "repeat_window": 4},
-        "epic_fantasy":    {"virtual_density": 0.30, "fourchar_density": 0.07,
-                            "rhythm_cv": 0.30, "tell_density": 0.30, "repeat_window": 6},
-        "urban":           {"virtual_density": 0.20, "fourchar_density": 0.02,
-                            "rhythm_cv": 0.42, "tell_density": 0.38, "repeat_window": 5},
-    }
+    _THRESHOLDS = _LZ._THRESHOLDS
 
     def __init__(self, llm_provider=None):
         self.llm_provider = llm_provider
@@ -3206,7 +2854,14 @@ class ProseStyleAuditor:
             n = sum(1 for w in p.get("encourage", []) if w in text)
             if n > best_n:
                 best_fam, best_n = p["family"], n
-        if best_n >= 2:
+        if best_n >= 2 and avg_len <= 11:
+            # 诗歌族必须过「短句」闸门：韵文（诗词/赋）句长短而密集，古典叙事
+            # 散文（章回小说）句长显著更长。实测四大名著均句长：三国 12.0–17.3
+            # （中位 14.5）、西游记 14.9–21.9、红楼梦 16.4–24.9、水浒 17.1–29.0；
+            # 而诗词/赋样本约 5–10。闸门取 11：低于它是韵文，高于它按叙事散文走
+            # eastern_ancient。无此闸门时章回文本会命中 classical_poetry 的鼓励词
+            # （之/乎/者/也/风/月/梦）被误路由到诗歌族，连带触发「文言堆砌」误报
+            # （register_drift 假失败）。
             return best_fam
         if classical >= 8 or ancient_hit >= 2:
             return "eastern_ancient"
@@ -3229,9 +2884,19 @@ class ProseStyleAuditor:
     def _th(fam: str) -> Dict[str, Any]:
         return ProseStyleAuditor._THRESHOLDS.get(fam, ProseStyleAuditor._THRESHOLDS["unknown"])
 
+    # 引语跨度：视角头跳只审叙述层；台词内的感知主语属角色内心，不构成 POV 跳转
+    _QUOTE_SPAN_RE = _LZ._QUOTE_SPAN_RE
+
+    @classmethod
+    def _strip_quotes(cls, text: str) -> str:
+        """剥掉台词跨度，仅留叙述层（用于视角头跳等叙述纪律检测）。"""
+        return cls._QUOTE_SPAN_RE.sub("", text or "")
+
     # —— 检测器 ——
     def _detect_head_hop(self, text, fam):
-        sents = self._split_sentences(text)
+        # 只审叙述层：红楼梦等对话密集文本中，「宝玉道：『我想……』」的感知
+        # 主语是角色内心活动，旧版不剥引语导致第 027/097 回假失败。
+        sents = self._split_sentences(self._strip_quotes(text))
         povs = []
         for i, s in enumerate(sents):
             m = re.search(r"(我|我们|他|她|他们|她们).{0,15}?(" + "|".join(self._PERCEPTION_VB) + ")", s)
@@ -3241,7 +2906,11 @@ class ProseStyleAuditor:
         for a, b in zip(povs, povs[1:]):
             if a[1] != b[1]:
                 hits.append({"from": a[1], "to": b[1], "near_sentence": b[0]})
-        return {"passed": len(hits) == 0, "hits": hits[:10]}
+        # 容差：长篇章回中偶发的人物感知切换属正常叙事调度，仅当跳转密度
+        # 过高（每 100 句 >2 次）才判失败；同时输出计数与密度供分体对照取用。
+        density = len(hits) / max(1.0, len(sents) / 100.0)
+        return {"passed": density <= 2.0, "hop_count": len(hits),
+                "hop_density_per100": round(density, 2), "hits": hits[:10]}
 
     def _detect_tense(self, text, fam):
         sents = self._split_sentences(text)
@@ -3261,7 +2930,10 @@ class ProseStyleAuditor:
         total = max(1, self._han_chars(text))
         virtual = sum(1 for c in text if c in self._VIRTUAL_CHARS)
         density = virtual / total
-        pairs = [p for p in self._REDUNDANT_PAIRS if p in text]
+        pair_pool = []
+        if fam in ("western_plain", "urban", "webnovel", "hardboiled", "scifi"):
+            pair_pool = list(self._REDUNDANT_PAIRS_MODERN)
+        pairs = [p for p in pair_pool if p in text]
         return {"passed": density <= th["virtual_density"] and not pairs,
                 "metric": round(density, 3), "threshold": th["virtual_density"],
                 "redundant_pairs": pairs}
@@ -3279,28 +2951,49 @@ class ProseStyleAuditor:
         return {"passed": cv >= th["rhythm_cv"], "metric": round(cv, 3),
                 "threshold": th["rhythm_cv"], "mean_len": round(mean, 1)}
 
-    def _detect_lexical_repeat(self, text, fam):
-        if self._han_chars(text) > 4000:
-            return {"passed": True, "note": "skipped_long_text"}
+    _REPEAT_MIN_FRAG = _LZ._REPEAT_MIN_FRAG
+    _REPEAT_CHUNK_SENTS = _LZ._REPEAT_CHUNK_SENTS
+    # 言语标记尾字/尾语：以这些结尾的片段（「又聽說道」「眾人聽了」）是章回体
+    # 言语/动作标记公式，不属于文风赘余。
+    _SPEECH_TAIL_CHARS = _LZ._SPEECH_TAIL_CHARS
+    _SPEECH_TAIL_PHRASES = _LZ._SPEECH_TAIL_PHRASES
+
+    def _detect_lexical_repeat(self, text, fam, known_names=None):
         th = self._th(fam)
         sents = self._split_sentences(text)
         win = th["repeat_window"]
-        hits = []
-        for start in range(max(0, len(sents) - win)):
-            window = "".join(sents[start:start + win])
-            fragments = re.findall(r"[\u4e00-\u9fa5]{2,}", window)
-            seen = {}
-            for frag in fragments:
-                if all(c in self._VIRTUAL_CHARS for c in frag):
-                    continue
-                seen[frag] = seen.get(frag, 0) + 1
-            for frag, cnt in seen.items():
-                if cnt >= 2:
-                    hits.append({"fragment": frag, "count": cnt, "near_window": start})
+        names = [n for n in (known_names or []) if n]
         uniq = {}
-        for h in hits:
-            uniq.setdefault(h["fragment"], h)
-        return {"passed": len(uniq) == 0, "hits": list(uniq.values())[:10]}
+        chunks = 0
+        # 修复两处历史缺陷：
+        # 1) 旧版对 >4000 汉字符的文本整体跳过（"skipped_long_text"），红楼梦
+        #    均章约 2100 汉字但长篇网文章节常超限，检测形同虚设；改为分块扫描。
+        # 2) 旧版把窗口内多句无分隔拼接后做整串匹配，每窗只剩一个巨型片段、
+        #    计数恒为 1，检测器实际不可能触发；改为逐句抽取片段后跨句计数。
+        # 人名豁免：含已知角色名的片段（「寶玉笑道」「小紅聽了」）是章回体的
+        # 言语/动作标记公式，不是文风赘余——传入 known_names 后跳过。
+        for base in range(0, max(1, len(sents)), self._REPEAT_CHUNK_SENTS):
+            chunks += 1
+            block = sents[base:base + self._REPEAT_CHUNK_SENTS]
+            for start in range(max(0, len(block) - win)):
+                seen = {}
+                for s in block[start:start + win]:
+                    for frag in re.findall(r"[\u4e00-\u9fa5]{%d,}" % self._REPEAT_MIN_FRAG, s):
+                        if all(c in self._VIRTUAL_CHARS for c in frag):
+                            continue
+                        if any(n in frag for n in names):
+                            continue
+                        if frag[-1] in self._SPEECH_TAIL_CHARS:
+                            continue
+                        if frag.endswith(self._SPEECH_TAIL_PHRASES):
+                            continue
+                        seen[frag] = seen.get(frag, 0) + 1
+                for frag, cnt in seen.items():
+                    if cnt >= 2:
+                        uniq.setdefault(frag, {"fragment": frag, "count": cnt,
+                                               "near_window": base + start})
+        return {"passed": len(uniq) == 0, "hits": list(uniq.values())[:10],
+                "chunks_scanned": chunks}
 
     def _detect_register_drift(self, text, fam):
         hits = []
@@ -3342,7 +3035,8 @@ class ProseStyleAuditor:
         except Exception:
             return {"enabled": True, "source": "llm", "error": "llm_call_failed"}
 
-    def audit(self, text: str, style_family: Optional[str] = None) -> Dict[str, Any]:
+    def audit(self, text: str, style_family: Optional[str] = None,
+             known_names: Optional[Any] = None) -> Dict[str, Any]:
         fam = style_family or self.detect_style_family(text)
         results = {
             "style_family": fam,
@@ -3350,13 +3044,19 @@ class ProseStyleAuditor:
             "tense_drift": self._detect_tense(text, fam),
             "redundancy": self._detect_redundancy(text, fam),
             "rhythm_monotone": self._detect_rhythm(text, fam),
-            "lexical_repeat": self._detect_lexical_repeat(text, fam),
+            "lexical_repeat": self._detect_lexical_repeat(text, fam, known_names=known_names),
             "register_drift": self._detect_register_drift(text, fam),
             "show_dont_tell": self._detect_tell(text, fam),
         }
         results["passed"] = all(
             v.get("passed", True) for k, v in results.items() if isinstance(v, dict)
         )
+        failed = [k for k, v in results.items()
+                  if isinstance(v, dict) and v.get("passed") is False]
+        results["failed_detectors"] = failed
+        # 统一 issues 出口：报告层只读 passed 会丢失可读性，这里把未通过子项
+        # 聚合成 issues（指标仍在各子项里，便于回查）。
+        results["issues"] = ["%s 未通过（见对应子项指标）" % k for k in failed]
         results["llm"] = self._llm_check(text, fam)  # 可选辅助，不计入硬失败
         return results
 
@@ -3364,80 +3064,7 @@ class ProseStyleAuditor:
 # ===================== 文风预设注册表（A+B：生成约束 + 审查族映射） =====================
 # 每个预设描述一种可指定的目标文风；family 映射到 ProseStyleAuditor 的审查阈值族，
 # 生成端由 _style_instruction 读取生成约束，审查端按 family 阈值校验（决定论、零依赖）。
-STYLE_PRESETS = {
-    "wuxia": {
-        "label_zh": "武侠", "label_en": "Wuxia", "family": "wuxia",
-        "encourage": ["剑", "掌", "内力", "抱拳", "纵身", "纵马", "江湖", "门派", "掌门", "侠", "招式", "轻功"],
-        "forbidden": ["手机", "微信", "电脑", "OK", "WiFi", "视频", "绝了", "yyds", "破防"],
-        "sentence": "多用四字格与利落短句，动作描写干净；允许半文半白。",
-        "rhetoric": "重白描与动作，少心理独白；对话干脆有江湖气。",
-        "pov": "第三人称限知 / 史官旁观",
-        "sample": "他抱拳一礼，纵身跃上墙头，剑光在月下划出一道冷弧。",
-    },
-    "xianxia": {
-        "label_zh": "仙侠", "label_en": "Xianxia", "family": "xianxia",
-        "encourage": ["仙", "灵", "气", "渡劫", "飞升", "宗门", "道友", "法宝", "灵根", "洞府"],
-        "forbidden": ["手机", "微信", "电脑", "OK", "WiFi", "视频", "绝了", "yyds"],
-        "sentence": "半文半白，长句铺陈天地灵气；可用对仗与虚字。",
-        "rhetoric": "重意境与气象描写，修辞偏瑰丽；对话清冷有仙风。",
-        "pov": "第三人称全知 / 史官旁观",
-        "sample": "灵气自洞府涌出，他闭目引气入体，恍若听见万物呼吸。",
-    },
-    "classical_poetry": {
-        "label_zh": "古风诗词", "label_en": "Classical poetry", "family": "classical_poetry",
-        "encourage": ["之", "乎", "者", "也", "兮", "风", "月", "江", "愁", "梦", "孤", "落"],
-        "forbidden": ["手机", "微信", "电脑", "OK", "WiFi", "视频", "绝了", "yyds", "破防"],
-        "sentence": "句式长短错落，重对仗与韵律；四字格与文言虚字密集。",
-        "rhetoric": "重意象与比兴，忌直白叙述；语域统一古雅。",
-        "pov": "抒情第一人称 / 第三人称限知",
-        "sample": "江风起兮波浩渺，孤舟独往梦迢遥。",
-    },
-    "scifi": {
-        "label_zh": "科幻", "label_en": "Sci-Fi", "family": "scifi",
-        "encourage": ["星", "舰", "量子", "文明", "轨道", "数据", "算法", "曲率", "维度", "信号"],
-        "forbidden": ["绝了", "yyds", "破防", "栓Q", "家人们"],
-        "sentence": "以白描与术语构建冷峻未来感；句长中等，逻辑清晰。",
-        "rhetoric": "重概念与机理，少用滥情比喻；对话精炼。",
-        "pov": "第三人称限知 / 史官旁观",
-        "sample": "曲率引擎点燃的瞬间，舰体在星图上拉出一道蓝色的痕。",
-    },
-    "webnovel": {
-        "label_zh": "网文", "label_en": "Web novel", "family": "webnovel",
-        "encourage": ["他", "她", "眼神", "心中", "气氛", "瞬间", "却在", "然而"],
-        "forbidden": ["绝了", "yyds", "破防", "栓Q", "家人们", "我裂开"],
-        "sentence": "快节奏，短中句交替；多用转折词维持爽感。",
-        "rhetoric": "重情绪钩子与节奏，可接受适度 tell；对话口语化。",
-        "pov": "第三人称限知",
-        "sample": "他却在下一瞬笑了，眼中寒意比刀更利。",
-    },
-    "hardboiled": {
-        "label_zh": "冷硬派", "label_en": "Hardboiled", "family": "hardboiled",
-        "encourage": ["烟", "街", "雨", "枪", "酒", "影子", "沉默", "血"],
-        "forbidden": ["绝了", "yyds", "破防", "栓Q", "家人们"],
-        "sentence": "极短句、硬冷白描；几乎不用形容词与比喻。",
-        "rhetoric": "重动作与环境，极少心理；对话 terse。",
-        "pov": "第一人称限知",
-        "sample": "雨还在下。我点燃最后一支烟，等电话响。",
-    },
-    "epic_fantasy": {
-        "label_zh": "史诗奇幻", "label_en": "Epic fantasy", "family": "epic_fantasy",
-        "encourage": ["王", "剑", "誓", "远征", "古老", "预言", "城邦", "龙", "命运"],
-        "forbidden": ["手机", "微信", "电脑", "OK", "WiFi", "视频", "绝了", "yyds"],
-        "sentence": "庄重长句铺陈，重场面与史诗感；可半文半白。",
-        "rhetoric": "重象征与宿命，修辞恢弘；对话有古韵。",
-        "pov": "第三人称全知 / 史官旁观",
-        "sample": "古老预言在风中复苏，王举起碎裂的剑，誓言仍未冷却。",
-    },
-    "urban": {
-        "label_zh": "都市", "label_en": "Urban", "family": "urban",
-        "encourage": ["公司", "地铁", "咖啡", "手机", "会议", "夜晚", "街角"],
-        "forbidden": ["绝了", "yyds", "破防", "栓Q", "家人们"],
-        "sentence": "现代白话，中等句长；允许现代物象。",
-        "rhetoric": "重生活质感与对话，自然口语；忌文言堆砌。",
-        "pov": "第一人称 / 第三人称限知",
-        "sample": "地铁进站的风卷起她的衣角，手机在掌心震了一下。",
-    },
-}
+STYLE_PRESETS = _LZ.STYLE_PRESETS
 
 
 class NarrativePresentationAuditor:
@@ -3458,6 +3085,7 @@ class NarrativePresentationAuditor:
         events: Optional[List[Dict[str, Any]]] = None,
         outline: str = "",
         style_family: Optional[str] = None,
+        known_names: Optional[Any] = None,
     ) -> Dict[str, Any]:
         mode = narration_mode or self.infer_mode(outline) or "chronicler"
         return {
@@ -3466,7 +3094,9 @@ class NarrativePresentationAuditor:
             "dialogue_era": audit_dialogue_era(text, self.world_rules),
             "dialogue_cognition": audit_dialogue_cognition(text, characters, events),
             "dialogue_registry": audit_dialogue_registry(text, characters),
-            "prose_style": self.prose_auditor.audit(text, style_family=style_family),
+            "prose_style": self.prose_auditor.audit(
+                text, style_family=style_family, known_names=known_names
+            ),
         }
 
     def all_passed(self, result: Dict[str, Any]) -> bool:
@@ -3844,7 +3474,7 @@ class StyleRecognizer:
         "何以",
     ]
     # 文言高频虚字：单字计分，出现即加权
-    _CLASSICAL_CHARS = "之乎者也矣焉哉夫其而于所与及以若者乃遂辄弗尝"
+    _CLASSICAL_CHARS = _LZ._CLASSICAL_CHARS_SR
     _MODERN_WORDS = [
         "其实",
         "对了",
@@ -4071,12 +3701,7 @@ class IncrementalAuditor:
     若持有 engine 引用，则把段落解析成单节点跑一次节点级审计（node_auditor）。
     """
 
-    _JUMP_WORDS = (
-        "突然之间", "突然间", "突然地", "突然", "莫名地", "莫名的", "莫名其妙地",
-        "莫名其妙", "莫名", "毫无理由地", "毫无理由", "不知怎么地", "不知怎么",
-        "鬼使神差地", "鬼使神差", "无缘无故地", "无缘无故", "毫无征兆地",
-        "毫无征兆", "说变就变",
-    )
+    _JUMP_WORDS = _LZ._JUMP_WORDS_IA
     _SET_HINTS = ("埋下伏笔", "埋下", "埋伏笔", "留下线索", "铺下伏笔", "埋线")
     _PAY_HINTS = ("回收伏笔", "呼应", "揭开", "真相大白", "兑现", "收回伏笔", "揭开谜底")
 

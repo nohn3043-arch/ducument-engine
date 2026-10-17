@@ -207,6 +207,12 @@ print(to_json(report))
 STORY-ENGINE/
 ├── Story Engine for Creator.py    # 引擎一 · 故事引擎（长篇叙事一致性审计）
 ├── prose_bridge.py                # 叙事桥接 / 生成层
+├── hlm_audit.py                   # 语料审计运行器（红楼梦全书 120 回，哈希链存证）
+├── foreshadow_arc.py              # 伏笔对账 + 判词谶语解析（独立模块，不依赖引擎）
+├── audit_postprocess.py           # LLM 审计发现后处理（去重聚类 + 自洽校验）
+├── adapters/                      # 语言适配层（协议见 spec.md）
+│   ├── spec.md                    # 语言包协议（六方法 + 部署约束 + 已知边界）
+│   └── zh.py                      # 中文参考实现（45 类语言常量 + 六方法）
 ├── shuihu_llm_audit.py            # 语料审计（LLM 辅助）
 ├── corpus_fetch.py                # 语料抓取
 ├── corpus_audit_report.py         # 语料审计报告
@@ -221,6 +227,16 @@ STORY-ENGINE/
 ├── GLOSSARY.md                    # 术语表
 └── LICENSE
 ```
+
+<p align="center">— ✦ —</p>
+
+## ✦ 语料依赖（clone 后需自备）
+
+`corpus/` 与 `corpus_audit/` **不在版本控制内**（`.gitignore` 忽略）。因此：
+
+- `hlm_audit.py`、`foreshadow_arc.py`、`shuihu_llm_audit.py`、`corpus_fetch.py` 等语料工具，clone 后**不带语料**，需自备 `corpus/<书名>/NNN 第N回 <回目>.txt`（三位回号前缀 + 空格 + 回目）才能运行；
+- 引擎本体 `Story Engine for Creator.py` **不依赖语料**可独立运行，但**必须与 `adapters/` 目录同级部署**——适配器缺失时启动即报错，不做静默回退；
+- 红楼梦审计的结论与逐回数据存放在本机 `corpus_audit/`，不在仓库内，需另行获取。
 
 <p align="center">— ✦ —</p>
 

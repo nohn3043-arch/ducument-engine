@@ -120,9 +120,11 @@ cd Story-engine
 # 纯 Python >=3.8。引擎文件有意使用带空格的文件名。
 
 # ── 引擎一：故事引擎 ──
+cd story-engine
 python "Story Engine for Creator.py"      # 长篇叙事一致性审计
 
 # ── 引擎二：合同审查引擎 ──
+cd ../document-engine
 python -m compliance_engine audit --type contract --input 合同.txt --output 报告.html
 python -m compliance_engine audit --type regulation --input 制度.txt --format json
 python -m compliance_engine list-rules --type contract
@@ -205,34 +207,40 @@ print(to_json(report))
 
 ```
 STORY-ENGINE/
-├── Story Engine for Creator.py    # 引擎一 · 故事引擎（长篇叙事一致性审计）
-├── prose_bridge.py                # 叙事桥接 / 生成层
-├── hlm_audit.py                   # 语料审计运行器（红楼梦全书 120 回，哈希链存证）
-├── foreshadow_arc.py              # 伏笔对账 + 判词谶语解析（独立模块，不依赖引擎）
-├── detect_logic_gaps.py           # 逻辑漏洞检测编排器（EventNode → 四校验器 → 责任锚定 → 报告）
-├── logic_validators.py            # 四类结构化逻辑校验器（语言无关、确定性、零依赖）
-├── extraction/                    # 上游抽取层（散文 → EventNode，契约与校验层解耦）
-│   ├── schema.py                  # EventNode 契约（抽取层与校验层的唯一接口）
-│   ├── rule_extractor.py          # 零依赖规则抽取（白盒验收基线 / 降级兜底）
-│   └── lexicons/                  # 语料词表（红楼梦 / 水浒最小集）；换语料 = 换词表，不改代码
-├── golden_samples.json            # 白盒验收样本（水浒 007/010/016 回）
-├── audit_postprocess.py           # LLM 审计发现后处理（去重聚类 + 自洽校验）
-├── adapters/                      # 语言适配层（协议见 spec.md）
-│   ├── spec.md                    # 语言包协议（六方法 + 部署约束 + 已知边界）
-│   └── zh.py                      # 中文参考实现（45 类语言常量 + 六方法）
-├── shuihu_llm_audit.py            # 语料审计（LLM 辅助）
-├── corpus_fetch.py                # 语料抓取
-├── corpus_audit_report.py         # 语料审计报告
-├── shuihu_builtin_audit_sample.md # 内置审计样例
-├── Document Engine.py             # 引擎二 · 合同审查引擎的 LLM 增强入口（LLMProvider 协议 + OpenAIProvider）
-├── compliance_engine/             # 引擎二 · 合同审查引擎规则内核（离线、零依赖）
-│   ├── engine.py / models.py / auditors.py / rules.py / report.py
-│   ├── cli.py                     # audit / list-rules / demo
-│   ├── rules/                     # contract.json / regulation.json / official_doc.json / common.json
-│   └── demo.py
+├── story-engine/                  # 引擎一 · 故事引擎（长篇叙事一致性审计）
+│   ├── Story Engine for Creator.py
+│   ├── prose_bridge.py            # 叙事桥接 / 生成层
+│   ├── hlm_audit.py               # 语料审计运行器（红楼梦全书 120 回，哈希链存证）
+│   ├── foreshadow_arc.py          # 伏笔对账 + 判词谶语解析（独立模块，不依赖引擎）
+│   ├── detect_logic_gaps.py       # 逻辑漏洞检测编排器（EventNode → 四校验器 → 责任锚定 → 报告）
+│   ├── logic_validators.py        # 四类结构化逻辑校验器（语言无关、确定性、零依赖）
+│   ├── extraction/                # 上游抽取层（散文 → EventNode，契约与校验层解耦）
+│   │   ├── schema.py              # EventNode 契约（抽取层与校验层的唯一接口）
+│   │   ├── rule_extractor.py      # 零依赖规则抽取（白盒验收基线 / 降级兜底）
+│   │   └── lexicons/              # 语料词表（红楼梦 / 水浒最小集）；换语料 = 换词表，不改代码
+│   ├── adapters/                  # 语言适配层（协议见 spec.md）
+│   │   ├── spec.md                # 语言包协议（六方法 + 部署约束 + 已知边界）
+│   │   └── zh.py                  # 中文参考实现（45 类语言常量 + 六方法）
+│   ├── golden_samples.json        # 白盒验收样本（水浒 007/010/016 回）
+│   ├── audit_postprocess.py       # LLM 审计发现后处理（去重聚类 + 自洽校验）
+│   ├── shuihu_llm_audit.py        # 语料审计（LLM 辅助）
+│   ├── corpus_fetch.py            # 语料抓取
+│   ├── corpus_audit_report.py     # 语料审计报告
+│   ├── shuihu_builtin_audit_sample.md  # 内置审计样例
+│   ├── corpus/                    # 本地语料（git 忽略）
+│   └── corpus_audit/              # 审计产物（git 忽略）
+├── document-engine/               # 引擎二 · 合同审查引擎
+│   ├── Document Engine.py         # LLM 增强入口（LLMProvider 协议 + OpenAIProvider）
+│   ├── compliance_engine/         # 规则内核（离线、零依赖）
+│   │   ├── engine.py / models.py / auditors.py / rules.py / report.py
+│   │   ├── cli.py                 # audit / list-rules / demo
+│   │   ├── rules/                 # contract.json / regulation.json / official_doc.json / common.json
+│   │   └── demo.py
+│   └── demo_output/               # 演示产物（git 忽略）
 ├── assets/                        # banner.svg/png、overview.svg/png
 ├── GLOSSARY.md                    # 术语表
-└── LICENSE
+├── LICENSE
+└── README-zh.md
 ```
 
 <p align="center">— ✦ —</p>

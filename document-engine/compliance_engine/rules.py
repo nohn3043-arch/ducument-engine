@@ -13,6 +13,9 @@ from .models import AuditFinding, DocType, RiskLevel
 
 _DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 
+# 单条规则在一个文档内最多输出的命中数；超过后只保留一条汇总提示。
+MAX_FINDINGS_PER_RULE = 200
+
 
 class RuleEngine:
     def __init__(self, rules_dir: Optional[Path] = None):
@@ -67,7 +70,14 @@ class RuleEngine:
     ) -> List[AuditFinding]:
         findings: List[AuditFinding] = []
         for kw in rule.get("patterns", []):
-            if kw and kw in text:
+            if not kw:
+                continue
+            start = 0
+            shown = 0
+            while shown < MAX_FINDINGS_PER_RULE:
+                idx = text.find(kw, start)
+                if idx < 0:
+                    break
                 findings.append(
                     AuditFinding(
                         rule_id=rule["id"],
@@ -76,7 +86,24 @@ class RuleEngine:
                         message=rule.get("message", f"命中风险词「{kw}」"),
                         suggestion=rule.get("suggestion", ""),
                         location="全文",
-                        snippet=_snippet_around(text, kw),
+                        snippet=_snippet_at(text, idx, len(kw)),
+                        offset=idx,
+                    )
+                )
+                shown += 1
+                start = idx + len(kw)
+            total = text.count(kw)
+            if total > shown:
+                findings.append(
+                    AuditFinding(
+                        rule_id=rule["id"],
+                        category=rule.get("category", "风险条款"),
+                        severity=severity,
+                        message=rule.get("message", f"命中风险词「{kw}」")
+                        + f"（同词共 {total} 处，仅列前 {shown} 处）",
+                        suggestion=rule.get("suggestion", ""),
+                        location="全文",
+                        snippet=kw,
                     )
                 )
         return findings
@@ -85,20 +112,47 @@ class RuleEngine:
         self, rule: Dict[str, Any], text: str, severity: RiskLevel
     ) -> List[AuditFinding]:
         findings: List[AuditFinding] = []
-        try:
-            pat = re.compile(rule["pattern"])
-        except re.error:
-            return []
-        for m in pat.finditer(text):
+        patterns = rule.get("patterns") or [rule.get("pattern", "")]
+        matches = []
+        for raw in patterns:
+            if not raw:
+                continue
+            try:
+                pat = re.compile(raw)
+            except re.error:
+                continue
+            for m in pat.finditer(text):
+                matches.append((m.start(), m.group(0)))
+        matches.sort(key=lambda x: x[0])
+        seen = set()
+        for pos, value in matches:
+            if pos in seen:
+                continue
+            seen.add(pos)
+            if len(findings) >= MAX_FINDINGS_PER_RULE:
+                findings.append(
+                    AuditFinding(
+                        rule_id=rule["id"],
+                        category=rule.get("category", "格式规范"),
+                        severity=severity,
+                        message=rule.get("message", "命中规则模式")
+                        + f"（同规则共 {len(matches)} 处，仅列前 {MAX_FINDINGS_PER_RULE} 处）",
+                        suggestion=rule.get("suggestion", ""),
+                        location="全文",
+                        snippet=value,
+                    )
+                )
+                break
             findings.append(
                 AuditFinding(
                     rule_id=rule["id"],
                     category=rule.get("category", "格式规范"),
                     severity=severity,
-                    message=rule.get("message", f"命中模式「{m.group(0)}」"),
+                    message=rule.get("message", f"命中模式「{value}」"),
                     suggestion=rule.get("suggestion", ""),
                     location="全文",
-                    snippet=m.group(0),
+                    snippet=_snippet_at(text, pos, len(value)),
+                    offset=pos,
                 )
             )
         return findings
@@ -111,10 +165,9 @@ def _parse_severity(s: str) -> RiskLevel:
         return RiskLevel.WARNING
 
 
-def _snippet_around(text: str, kw: str, radius: int = 18) -> str:
-    idx = text.find(kw)
+def _snippet_at(text: str, idx: int, length: int, radius: int = 18) -> str:
     if idx < 0:
-        return kw
+        return ""
     start = max(0, idx - radius)
-    end = min(len(text), idx + len(kw) + radius)
+    end = min(len(text), idx + length + radius)
     return text[start:end]

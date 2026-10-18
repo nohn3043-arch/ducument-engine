@@ -4,6 +4,7 @@
 全部判定为决定论式（命中即判定），不输出概率估计。
 """
 
+import bisect
 import re
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -86,15 +87,15 @@ class ComplianceEngine:
 
     # ---------- 内部流程 ----------
     def _segment(self, text: str) -> List[AuditNode]:
-        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-        if not lines:
-            return []
         nodes: List[AuditNode] = []
         current: List[str] = []
         current_section = "开头"
+        block_start = -1
+        block_end = 0
+        pos = 0
 
         def flush():
-            nonlocal current, current_section
+            nonlocal current, block_start, block_end
             if current:
                 nodes.append(
                     AuditNode(
@@ -102,28 +103,50 @@ class ComplianceEngine:
                         content="\n".join(current),
                         section=current_section,
                         status=NodeStatus.SCANNED,
+                        start=max(block_start, 0),
+                        end=block_end,
                     )
                 )
                 current = []
+                block_start = -1
 
-        for ln in lines:
+        for raw in text.splitlines(keepends=True):
+            line_start = pos
+            pos += len(raw)
+            ln = raw.strip()
+            if not ln:
+                continue
             m = _SECTION_RE.match(ln)
             if m:
                 flush()
                 current_section = m.group(0).strip()
+            if block_start < 0:
+                block_start = line_start
+            block_end = pos
             current.append(ln)
         flush()
         return nodes
 
     def _attach_to_nodes(self, findings: List[AuditFinding], nodes: List[AuditNode]) -> None:
+        if not nodes:
+            return
+        starts = [n.start for n in nodes]
         for f in findings:
             if not f.snippet:
                 continue
-            for node in nodes:
-                if f.snippet in node.content:
-                    node.findings.append(f)
-                    node.status = NodeStatus.AUDITED
-                    break
+            node = None
+            if f.offset >= 0:
+                i = bisect.bisect_right(starts, f.offset) - 1
+                if i >= 0 and f.offset < nodes[i].end:
+                    node = nodes[i]
+            if node is None:
+                for candidate in nodes:
+                    if f.snippet in candidate.content:
+                        node = candidate
+                        break
+            if node is not None:
+                node.findings.append(f)
+                node.status = NodeStatus.AUDITED
 
     def _dedup(self, findings: List[AuditFinding]) -> List[AuditFinding]:
         seen = set()

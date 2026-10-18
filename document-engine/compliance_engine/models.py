@@ -85,6 +85,7 @@ class AuditFinding:
     location: str
     snippet: str
     confidence: float = 1.0
+    offset: int = -1
 
 
 @dataclass
@@ -97,6 +98,8 @@ class AuditNode:
     findings: List[AuditFinding] = field(default_factory=list)
     status: NodeStatus = NodeStatus.RAW
     score: float = 100.0
+    start: int = 0
+    end: int = 0
 
 
 @dataclass

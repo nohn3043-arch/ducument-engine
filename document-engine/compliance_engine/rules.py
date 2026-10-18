@@ -13,8 +13,6 @@ from .models import AuditFinding, DocType, RiskLevel
 
 _DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 
-# 单条规则在一个文档内最多输出的命中数；超过后只保留一条汇总提示。
-MAX_FINDINGS_PER_RULE = 200
 
 
 class RuleEngine:
@@ -73,8 +71,7 @@ class RuleEngine:
             if not kw:
                 continue
             start = 0
-            shown = 0
-            while shown < MAX_FINDINGS_PER_RULE:
+            while True:
                 idx = text.find(kw, start)
                 if idx < 0:
                     break
@@ -90,22 +87,7 @@ class RuleEngine:
                         offset=idx,
                     )
                 )
-                shown += 1
                 start = idx + len(kw)
-            total = text.count(kw)
-            if total > shown:
-                findings.append(
-                    AuditFinding(
-                        rule_id=rule["id"],
-                        category=rule.get("category", "风险条款"),
-                        severity=severity,
-                        message=rule.get("message", f"命中风险词「{kw}」")
-                        + f"（同词共 {total} 处，仅列前 {shown} 处）",
-                        suggestion=rule.get("suggestion", ""),
-                        location="全文",
-                        snippet=kw,
-                    )
-                )
         return findings
 
     def _match_regex(
@@ -129,20 +111,6 @@ class RuleEngine:
             if pos in seen:
                 continue
             seen.add(pos)
-            if len(findings) >= MAX_FINDINGS_PER_RULE:
-                findings.append(
-                    AuditFinding(
-                        rule_id=rule["id"],
-                        category=rule.get("category", "格式规范"),
-                        severity=severity,
-                        message=rule.get("message", "命中规则模式")
-                        + f"（同规则共 {len(matches)} 处，仅列前 {MAX_FINDINGS_PER_RULE} 处）",
-                        suggestion=rule.get("suggestion", ""),
-                        location="全文",
-                        snippet=value,
-                    )
-                )
-                break
             findings.append(
                 AuditFinding(
                     rule_id=rule["id"],

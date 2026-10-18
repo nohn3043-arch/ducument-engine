@@ -21,8 +21,8 @@ class TestKeywordCoverage(unittest.TestCase):
         )
         report = ComplianceEngine().audit(text, DocType.CONTRACT)
         hits = [f for f in report.findings if f.rule_id == "CT-005"]
-        self.assertGreaterEqual(len(hits), 200)
-        self.assertTrue(any("仅列前 200 处" in f.message for f in hits))
+        self.assertEqual(len(hits), 300)
+        self.assertFalse(any("仅列前" in f.message for f in hits))
 
     def test_findings_attach_to_nodes(self):
         text = "服务合同\n第一条 乙方应在通知后及时完成。\n第二条 甲方单方解除且不承担责任。\n"

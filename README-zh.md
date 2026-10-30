@@ -149,6 +149,13 @@ python -m compliance_engine demo
   - `CausalNode` 携带 `implicit_assumptions` 与 `vulnerability_score` —— 追踪*因为 → 所以*逻辑并量化脆弱性。
   - `NarrativeStripper` / `ImplicitAssumptionDetector` / `VulnerabilityAssessor` —— 第二视角算子流水线。
   - `AutomaticRepairEngine`（全量跳词修复）/ `UltimateCausalNovelEngine` / `SecondPerspectiveCausalEngine` / `WorldBuilder`（词元级世界观提取）—— 修复、全书审计与世界观构建层。
+- **剧情多分支推演**（`branch_simulator.py`）—— 在引擎之外做分叉，主引擎零改动：
+  - **快照派生**：按章节边界取快照，`copy.deepcopy` 派生 K 条分支，各自推演、各自过审，互不写回正本；选定后再显式合流。
+  - **五项审计面**：人称/视角 · 因果链 · 逻辑 · 时空 · 伏笔，逐面列出失败分布——只看总布尔值会误读，因为单章分支几乎必然留下未回收伏笔。
+  - **帕累托前沿**：排序规则明写可复核（失败面数 → 角色漂移 → 未回收伏笔 → 文本字数），不宣布唯一最优，选线权归作者。
+  - **结构防呆**：`validate_audit_shape()` 逐层校验审计报告结构，主引擎若变更返回结构会显式抛错，而不是静默判成「分支未通过」。
+  - **溯源稳定**：分叉点指纹取节点语义文本的 SHA1（`node_id` 是 uuid4，跨运行会变，不可用于溯源）。
+  - CLI：`python branch_simulator.py --demo` ｜ `--variants branch_variants.example.json --out 报告目录`
 - **叙事桥接**（`prose_bridge.py`）与**语料审计**（`corpus_fetch.py` / `corpus_audit_report.py` / `shuihu_llm_audit.py`）—— 生成层与批量语料核验层。
 
 ### 引擎二 · 合同审查引擎（面向企业法务 / 合规）
@@ -199,6 +206,22 @@ print(to_json(report))
 
 需要 LLM 增强时，实现 `Document Engine.py` 里的 `LLMProvider` 协议并注入即可；不注入则完全离线运行。
 
+剧情多分支推演可按库方式调用（需在 `story-engine/` 目录下运行）：
+
+```python
+import branch_simulator as BS
+
+sim = BS.BranchSimulator(engine)          # engine 已推进到分叉点
+branches = sim.fork([                     # 大纲用「A -> B -> C」，缺箭头会被拦下
+    ("妥协线", "林夏接受第三方评审 -> 项目延期两周 -> 成本回落到预算内"),
+    ("对抗线", "林夏拒绝第三方评审 -> 坚持自研上线 -> 预算超支"),
+])
+print(sim.table(branches))                # 终端对比表
+new_engine = sim.pick(branches, "折中线")  # 合流：返回该分支的引擎实例
+```
+
+命令行等价形式：`python branch_simulator.py --demo`，或 `--variants branch_variants.example.json --out 报告目录` 导出 Markdown 与 JSON。
+
 </div>
 
 <p align="center">— ✦ —</p>
@@ -214,6 +237,8 @@ STORY-ENGINE/
 │   ├── foreshadow_arc.py          # 伏笔对账 + 判词谶语解析（独立模块，不依赖引擎）
 │   ├── detect_logic_gaps.py       # 逻辑漏洞检测编排器（EventNode → 四校验器 → 责任锚定 → 报告）
 │   ├── logic_validators.py        # 四类结构化逻辑校验器（语言无关、确定性、零依赖）
+│   ├── branch_simulator.py        # 剧情多分支推演（外部沙盒：快照 → 派生 → 独立推演 → 对比 → 选线）
+│   ├── branch_variants.example.json  # 分支输入示例（label + outline + 可选角色档案）
 │   ├── extraction/                # 上游抽取层（散文 → EventNode，契约与校验层解耦）
 │   │   ├── schema.py              # EventNode 契约（抽取层与校验层的唯一接口）
 │   │   ├── rule_extractor.py      # 零依赖规则抽取（白盒验收基线 / 降级兜底）
@@ -308,6 +333,27 @@ STORY-ENGINE/
 **已知盲区**：非词汇化死亡漏检（晴雯 ch77、凤姐 ch114 幕后追述、尤三姐 ch66 全文无死亡词汇）；亲属称谓指代无法归属（「長孫媳婦」「妹子」）；鬼魂显灵误触死→生校验（须人工复核）；判词-vs-正文矛盾不属四校验器覆盖类（由 `foreshadow_arc.py` 产出，红楼梦已确证 3 条）。
 
 **后续路径**：① LLM 抽取层（接口已留）攻击 0.1% 覆盖率瓶颈；② 第五类校验器「谶语-正文对账」并入编排器；③ 词表补亲属称谓映射与死亡词汇。
+
+### 剧情多分支推演（2026-10 新增，实测边界）
+
+`branch_simulator.py` 在引擎之外做分叉，主引擎一行未改。实测样例：3 条分支共用同一分叉点（第 1 章后，2 个节点），`copy.deepcopy` 隔离后各自推进，基线章节数保持不变。
+
+| 项 | 实测状态 |
+|---|---|
+| 状态隔离 | ✅ 分支 A 追加 `妥协`、B 追加 `对抗`，基线 traits 仍为 `['固执']`，无共享引用泄漏 |
+| 独立推演 | ✅ 各分支独立 `plan_chapter` → `render_chapter` → `audit_text` |
+| 合流 | ✅ `pick()` 返回分支引擎，可继续推下一章（章节数 2 → 3），基线未被污染 |
+| 结构防呆 | ✅ 四类结构破坏（缺顶层字段 / 缺 `collapse_verdict` / 缺 `converged` / 缺 `all_closed`）全部显式拦截 |
+| 溯源指纹 | ✅ 取节点语义文本 SHA1，跨运行稳定（`90980cd97164`）；`node_id` 为 uuid4，不可用于溯源 |
+| 无箭头大纲 | ✅ 前置拦截（主引擎会将其降级为「前提 +（待续）」占位节点，不拦会被误计为可用分支） |
+
+**已知边界**：
+
+- **不自动生成分支** —— 只负责推演与比较，候选走向由作者给出。自动生成需接入 LLM，未实现。
+- **只在章边界分叉** —— 节点级分叉会让同一章内出现互斥事实，审计立即互斥。
+- **`strict_characters` 是规避而非修复** —— 它临时屏蔽模块级 `auto_register_characters`，避免「成本」这类普通名词被注册成角色；根因仍在主引擎的 `_is_plausible_name`。
+- **伏笔面几乎恒红** —— `all_passed` 要求 SET 全部 PAY，单章新分支天然留下未回收项，故必须看五项失败面分布，不能只看总布尔值。
+- **内存随分支数线性增长** —— 每条分支是一份完整引擎深拷贝；当前实测到 4 条，未做惰性渲染。
 
 ### 使用前提（三条，缺一则结论不可信）
 

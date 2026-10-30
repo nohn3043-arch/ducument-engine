@@ -37,7 +37,7 @@ except ImportError:  # 允许独立运行调试
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 LEXICON_DIR = os.path.join(_HERE, "lexicons")
-DEFAULT_LEXICON = "hongloumeng"
+DEFAULT_LEXICON = "example"
 
 # 诗歌行标记：整句跳过（诗句中的数字/地名不是叙事坐标）
 _VERSE_MARKERS = ("詩曰", "詞曰", "正是：", "有詩為證", "後人有詩", "詩云",
@@ -80,6 +80,9 @@ def load_lexicon(name_or_path: str = DEFAULT_LEXICON) -> Dict[str, Any]:
         path = name_or_path
     else:
         path = os.path.join(LEXICON_DIR, name_or_path + ".json")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            "词表不存在：%s（模板自带 example.json，实际档案请复制后替换内容）" % path)
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -303,7 +306,12 @@ def coverage_stats(nodes: List[EventNode]) -> Dict[str, Any]:
 
 if __name__ == "__main__":
     import sys
-    d = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-        os.path.dirname(_HERE), "corpus", "红楼梦")
-    ns = extract_corpus(d)
+
+    if len(sys.argv) < 2:
+        print("用法：python extraction/rule_extractor.py <章节目录> [词表名或 json 路径]")
+        print("示例：python extraction/rule_extractor.py ./corpus/示例 [example]")
+        raise SystemExit(1)
+    d = sys.argv[1]
+    lex = load_lexicon(sys.argv[2]) if len(sys.argv) > 2 else None
+    ns = extract_corpus(d, lex=lex)
     print(json.dumps(coverage_stats(ns), ensure_ascii=False, indent=1))

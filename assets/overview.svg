@@ -1,30 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="overview">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="合规审查流水线">
   <rect width="880" height="560" fill="#FAFAFA"/>
-<text x="440" y="56" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="30" font-weight="600" fill="#2C2C2C" letter-spacing="1">Consistency Pipeline</text>
+<text x="440" y="56" text-anchor="middle" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="30" font-weight="600" fill="#2C2C2C" letter-spacing="1">合规审查流水线</text>
 <line x1="360" y1="78" x2="520" y2="78" stroke="#D4AF37" stroke-width="2"/>
 <rect x="28" y="110" width="256" height="168" rx="14" fill="#FFFFFF" stroke="#C9A96E" stroke-width="1.5"/>
 <circle cx="62" cy="148" r="9" fill="#D4AF37"/>
-<text x="82" y="154" font-family="Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">Character</text>
-<text x="48" y="226" font-family="Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">角色属性与行为一致性</text>
+<text x="82" y="154" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">分节</text>
+<text x="48" y="226" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">按条款切分文本</text>
 <rect x="308" y="110" width="256" height="168" rx="14" fill="#FFFFFF" stroke="#C9A96E" stroke-width="1.5"/>
 <circle cx="342" cy="148" r="9" fill="#D4AF37"/>
-<text x="362" y="154" font-family="Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">Causality</text>
-<text x="328" y="226" font-family="Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">事件因果时序校验</text>
+<text x="362" y="154" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">规则扫描</text>
+<text x="328" y="226" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">命中即裁定</text>
 <rect x="588" y="110" width="256" height="168" rx="14" fill="#FFFFFF" stroke="#C9A96E" stroke-width="1.5"/>
 <circle cx="622" cy="148" r="9" fill="#D4AF37"/>
-<text x="642" y="154" font-family="Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">Memory</text>
-<text x="608" y="226" font-family="Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">跨章节记忆线索追踪</text>
+<text x="642" y="154" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">文档级审计</text>
+<text x="608" y="226" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">要素 / 一致 / 权责 / 格式</text>
 <rect x="28" y="306" width="256" height="168" rx="14" fill="#FFFFFF" stroke="#C9A96E" stroke-width="1.5"/>
 <circle cx="62" cy="344" r="9" fill="#D4AF37"/>
-<text x="82" y="350" font-family="Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">World</text>
-<text x="48" y="422" font-family="Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">世界观规则冲突检测</text>
+<text x="82" y="350" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">责任闭环</text>
+<text x="48" y="422" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">每条结论绑定责任方</text>
 <rect x="308" y="306" width="256" height="168" rx="14" fill="#FFFFFF" stroke="#C9A96E" stroke-width="1.5"/>
 <circle cx="342" cy="344" r="9" fill="#D4AF37"/>
-<text x="362" y="350" font-family="Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">Timeline</text>
-<text x="328" y="422" font-family="Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">时间线并置与错位告警</text>
+<text x="362" y="350" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">全链留痕</text>
+<text x="328" y="422" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">结论可倒查</text>
 <rect x="588" y="306" width="256" height="168" rx="14" fill="#FFFFFF" stroke="#C9A96E" stroke-width="1.5"/>
 <circle cx="622" cy="344" r="9" fill="#D4AF37"/>
-<text x="642" y="350" font-family="Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">Report</text>
-<text x="608" y="422" font-family="Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">可读性一致性报告</text>
+<text x="642" y="350" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="19" font-weight="600" fill="#2C2C2C">报告</text>
+<text x="608" y="422" font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, Helvetica Neue, Arial, sans-serif" font-size="14" fill="#8B8B8B">HTML / JSON / Markdown</text>
 
 </svg>

@@ -3,15 +3,14 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/nlp-D4AF37?style=flat-square" alt="nlp">
-  <img src="https://img.shields.io/badge/consistency-D4AF37?style=flat-square" alt="consistency">
   <img src="https://img.shields.io/badge/compliance-D4AF37?style=flat-square" alt="compliance">
   <img src="https://img.shields.io/badge/offline-D4AF37?style=flat-square" alt="offline">
-  <img src="https://img.shields.io/badge/second--perspective-D4AF37?style=flat-square" alt="second-perspective">
+  <img src="https://img.shields.io/badge/zero--deps-D4AF37?style=flat-square" alt="zero-deps">
+  <img src="https://img.shields.io/badge/python-3.8%2B-D4AF37?style=flat-square" alt="python">
 </p>
 
 <blockquote align="center">
-  <em>一个仓库 · 两个引擎 —— 故事引擎 与 合同审查引擎</em>
+  <em>一个仓库 · 一个引擎 —— 合同审查引擎</em>
 </blockquote>
 
 <p align="center">
@@ -22,12 +21,9 @@
 
 ## ✦ 关于
 
-<p style="font-size:15px;line-height:1.8;color:#2C2C2C">STORY-ENGINE 是<strong>一个仓库里的两个引擎</strong>，各自独立、可分别运行，共用同一套确定性审计语法：</p>
+<p style="font-size:15px;line-height:1.8;color:#2C2C2C">STORY-ENGINE 现在只提供一个引擎：<strong>合同审查引擎（Document Review Engine）</strong> —— 面向企业法务 / 合规的文档复核引擎。对合同、法规、公文与通用文本执行条款级规则扫描与文档级审计（要素完整性 / 一致性 / 权责对等 / 格式），并输出可追溯的复核报告。<strong>规则内核零依赖、可完全离线运行</strong>；<code>Document Engine.py</code> 提供可选的 LLM 增强入口。</p>
 
-<ul style="font-size:15px;line-height:1.8;color:#2C2C2C">
-  <li><strong>故事引擎（Story Engine）</strong> —— 面向创作者与大众的长篇小说一致性引擎。自动审计人物设定、因果时间线与记忆线，使百万字作品在人物、情节与世界观上保持一致；同时提供 SPL 四阶段叙事编辑流水线。它把编辑的直觉式校对转化为可复用的结构化流程。</li>
-  <li><strong>合同审查引擎（Document Review Engine）</strong> —— 面向企业法务 / 合规的文档复核引擎。对合同、法规、公文与通用文本执行条款级规则扫描与文档级审计（要素完整性 / 一致性 / 权责对等 / 格式），并输出可追溯的复核报告。<strong>规则内核零依赖、可完全离线运行</strong>；`Document Engine.py` 提供可选的 LLM 增强入口。</li>
-</ul>
+<p style="font-size:15px;line-height:1.8;color:#2C2C2C"><strong>仓库变更（2026-11）</strong>：原「故事引擎」（<code>Story Engine for Creator.py</code> · <code>adapters/</code> · <code>extraction/</code> · <code>branch_simulator.py</code> · <code>logic_validators.py</code>）已从本仓库移除，本仓库不再包含长篇叙事一致性审计与剧情多分支推演。旧版本可从 Git 历史中取回。</p>
 
 <p align="center">
   <img src="assets/overview.png" alt="STORY-ENGINE 概览" style="width:100%">
@@ -39,35 +35,23 @@
 
 ## ✦ 系统架构（人话版）
 
-> **一句话：** 一个仓库，两个引擎——一个让百万字长篇不自相矛盾，一个让企业文档保持合规。两者共用同一套审计语法，但数据类互相隔离。
+> **一句话：** 一个引擎，一条脊柱——把合同、法规、公文和通用文本切成小节，对着规则库逐条扫描，再补一层文档级审计，最后出一份写着责任方的报告。
 
 ```mermaid
 flowchart TB
-    UP["👥 调用方<br/>创作者 · 企业法务 / 合规 · 命令行用户"]
-
-    CIN["🖋️ 故事引擎<br/>Story Engine for Creator.py<br/>输入：人物 · 因果时间线 · 世界观"]
-    C1["🖋️ ResponsibilityAccount + CognitiveAuditEngine + AuditPlugin<br/>责任闭环锚定：把每条结论绑到责任方 · 可插拔插件跑认知审计"]
-    C2["🧹 NarrativeStripper → ImplicitAssumptionDetector<br/>剥离叙述修辞 · 探测没写明的隐含假设"]
-    C3["⚠️ VulnerabilityAssessor → AutomaticRepairEngine → WorldBuilder<br/>定位脆弱点 · 跳词修复 · 抽取世界观设定"]
-    COUT["⭐ 故事引擎输出<br/>给这份稿子的准确性评分"]
+    UP["👥 调用方<br/>企业法务 / 合规 · 命令行用户"]
 
     DIN["🏛️ 合同审查引擎<br/>Document Engine.py · compliance_engine/<br/>输入：合同 · 法规 · 公文 · 通用文本"]
     D1["🏛️ compliance_engine/engine.py · _segment + rules.py + rules/*.json<br/>把文本切成小节 · 对着规则库做条款级扫描"]
     D2["📑 compliance_engine/auditors.py → models.py → report.py<br/>文档级审计（要素完备 / 一致性 / 权义对等 / 格式）· 责任闭环锚定 · 评分 · 出报告"]
 
-    SH["🧵 TraceLog + _ENGINE_FINGERPRINT + check_engine_isolation()<br/>全链路留痕可倒查 · 两个引擎被混用时立即中断"]
+    SH["🧵 TraceLog + _ENGINE_FINGERPRINT<br/>全链路留痕可倒查"]
     OUT["📄 报告输出：HTML / JSON / Markdown<br/>每条结论都带着它的责任方"]
     HUMAN["✍️ 人工签批<br/>最终结论留在算法之外"]
 
-    UP --> CIN
     UP --> DIN
-    CIN --> C1
-    C1 --> C2
-    C2 --> C3
-    C3 --> COUT
     DIN --> D1
     D1 --> D2
-    COUT --> SH
     D2 --> SH
     SH --> OUT
     OUT --> HUMAN
@@ -78,17 +62,17 @@ flowchart TB
     classDef cSide fill:#F3E8FD,stroke:#8E44AD,stroke-width:1px;color:#4A235D
     classDef cOut fill:#E6F4EA,stroke:#34A853,stroke-width:1px;color:#14512B
     class UP cUp
-    class CIN,DIN cIn
-    class C1,C2,C3,D1,D2 cCore
+    class DIN cIn
+    class D1,D2 cCore
     class SH cSide
-    class COUT,OUT,HUMAN cOut
+    class OUT,HUMAN cOut
 ```
 
 **这张图怎么看**
 
-1. **从上往下：两个入口，一条脊柱。** 调用方分别进入故事引擎与合同审查引擎两条支线，每条支线最后都汇入同一套留痕层，产出同样三种格式的报告。
-2. **每个框都写了真实文件或类名。** `Story Engine for Creator.py`、`Document Engine.py`、`compliance_engine/engine.py`、`auditors.py`、`models.py`、`report.py`——可以对照源码直接翻。
-3. **合同审查引擎是最硬的边界。** 它的规则内核完全不依赖大模型：纯 JSON 规则库（`rules/*.json`），可离线运行，命中即判、结果确定。`Document Engine.py` 只是可选的 LLM 增强层，不接入也能完整跑通。
+1. **从上往下：一个入口，一条脊柱。** 调用方进入合同审查引擎，走完条款级扫描与文档级审计，最后汇入留痕层，产出三种格式的报告。
+2. **每个框都写了真实文件或类名。** `Document Engine.py`、`compliance_engine/engine.py`、`auditors.py`、`models.py`、`report.py`——可以对照源码直接翻。
+3. **规则内核是最硬的边界。** 它完全不依赖大模型：纯 JSON 规则库（`rules/*.json`），可离线运行，命中即判、结果确定。`Document Engine.py` 只是可选的 LLM 增强层，不接入也能完整跑通。
 
 📖 每个术语都用一句人话解释 → [术语表 GLOSSARY](./GLOSSARY.md)
 
@@ -96,14 +80,11 @@ flowchart TB
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
-一个仓库，两个引擎，各自面向不同用户群体：
-
 | 引擎 | 目标用户 | 模块 | 典型输入 |
 |---|---|---|---|
-| **故事引擎** | 创作者 / 大众 | `Story Engine for Creator.py` + `adapters/`（语言适配层）+ `extraction/`（词表驱动抽取） | 人物 / 因果时间线 / 世界观 / 叙事要素 |
 | **合同审查引擎** | 企业法务 / 合规 | `compliance_engine/`（规则内核，离线零依赖）+ `Document Engine.py`（可选 LLM 增强） | 合同 / 法规 / 公文 / 通用文本 |
 
-两个引擎共享同一套**确定性审计设计语言** —— 责任闭环锚定（`ResponsibilityAccount`）、风险分级与全链可追溯日志。合同审查引擎的规则内核**不依赖 LLM** —— 纯规则库、零第三方依赖、离线运行，专攻企业文档合规场景。
+规则内核**不依赖 LLM** —— 纯规则库、零第三方依赖、离线运行，专攻企业文档合规场景；同时保留责任闭环锚定（`ResponsibilityAccount`）、风险分级与全链可追溯日志。
 
 </div>
 
@@ -117,14 +98,9 @@ git clone https://github.com/nohn3043-arch/story-engine.git
 # 镜像：Gitee
 # git clone https://gitee.com/sjiun/Story-engine.git
 cd Story-engine
-# 纯 Python >=3.8。引擎文件有意使用带空格的文件名。
+# 纯 Python >=3.8，零第三方依赖。引擎文件有意使用带空格的文件名。
 
-# ── 引擎一：故事引擎 ──
-cd story-engine
-python "Story Engine for Creator.py"      # 长篇叙事一致性审计
-
-# ── 引擎二：合同审查引擎 ──
-cd ../document-engine
+cd document-engine
 python -m compliance_engine audit --type contract --input 合同.txt --output 报告.html
 python -m compliance_engine audit --type regulation --input 制度.txt --format json
 python -m compliance_engine list-rules --type contract
@@ -137,28 +113,7 @@ python -m compliance_engine demo
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
-一个仓库，两个引擎，各自服务不同用户群体：
-
-### 引擎一 · 故事引擎（面向创作者与大众）
-
-一个长篇小说一致性引擎，把编辑的直觉式校对转化为可复用的结构化流程：
-
-- **创作者引擎**（`Story Engine for Creator.py`）—— 面向叙事的认知审计层：
-  - `ResponsibilityAccount` —— 每项检查都锚定到具名的责任节点（谁 / 角色 / 阶段）。
-  - `CognitiveAuditEngine` + 可插拔 `AuditPlugin` + `EmotionalConstraint` —— 可组合的审计维度。
-  - `CausalNode` 携带 `implicit_assumptions` 与 `vulnerability_score` —— 追踪*因为 → 所以*逻辑并量化脆弱性。
-  - `NarrativeStripper` / `ImplicitAssumptionDetector` / `VulnerabilityAssessor` —— 第二视角算子流水线。
-  - `AutomaticRepairEngine`（全量跳词修复）/ `UltimateCausalNovelEngine` / `SecondPerspectiveCausalEngine` / `WorldBuilder`（词元级世界观提取）—— 修复、全书审计与世界观构建层。
-- **剧情多分支推演**（`branch_simulator.py`）—— 在引擎之外做分叉，主引擎零改动：
-  - **快照派生**：按章节边界取快照，`copy.deepcopy` 派生 K 条分支，各自推演、各自过审，互不写回正本；选定后再显式合流。
-  - **五项审计面**：人称/视角 · 因果链 · 逻辑 · 时空 · 伏笔，逐面列出失败分布——只看总布尔值会误读，因为单章分支几乎必然留下未回收伏笔。
-  - **帕累托前沿**：排序规则明写可复核（失败面数 → 角色漂移 → 未回收伏笔 → 文本字数），不宣布唯一最优，选线权归作者。
-  - **结构防呆**：`validate_audit_shape()` 逐层校验审计报告结构，主引擎若变更返回结构会显式抛错，而不是静默判成「分支未通过」。
-  - **溯源稳定**：分叉点指纹取节点语义文本的 SHA1（`node_id` 是 uuid4，跨运行会变，不可用于溯源）。
-  - CLI：`python branch_simulator.py --demo` ｜ `--variants branch_variants.example.json --out 报告目录`
-- **通用模板形态**（`TEMPLATE.md`）—— 引擎本体只保留语言无关逻辑，语言常量外置到 `adapters/`，作品词表外置到 `extraction/lexicons/`；交付时复制模板、替换适配层与词表，不改引擎。
-
-### 引擎二 · 合同审查引擎（面向企业法务 / 合规）
+### 合同审查引擎（面向企业法务 / 合规）
 
 一款企业级文档合规复核引擎，由两部分组成：
 
@@ -179,15 +134,6 @@ python -m compliance_engine audit --type regulation --input policy.txt --lang en
 python -m compliance_engine list-rules --lang en   # 列出英文规则库（14 条）
 ```
 
-两个引擎共享同一套确定性审计设计语言（责任闭环锚定、风险分级、全链可追溯），但分别面向创作叙事与企业文档场景。
-
-**健壮性加固（2026-08 修复）**：
-
-- **人名合理性过滤** —— `_extract_plausible_name` 排除代词 / 动词短语 / 天气场景词，宁可缺失也不要噪声：`"坚持己见" → ""`，`"他说：我们走吧" → ""`，`"林夏在评审会上坚持自研方案" → "林夏"`。
-- **词元级世界观提取** —— `WorldBuilder` 先按连接词 / 标点预分词，再以最长后缀优先匹配整词：`"青云宗与魔道势力在苍云大陆" → factions ["青云宗","魔道势力"], geography ["苍云大陆"]`，连接词不再被吞并。
-- **全文修订替换** —— `AutomaticRepairEngine` 一次性替换所有生硬过渡词（`突然 / 莫名 / 鬼使神差 …`），并合并相邻的重复过渡短语。
-- **引擎隔离检测** —— 两个引擎都内嵌 `_ENGINE_FINGERPRINT` 与 `check_engine_isolation()`：在同一进程中混用会立即告警，防止同名但异质的数据类（`CausalNode` / `ResponsibilityAccount` 等）互相覆盖导致的数据损坏与崩溃。
-
 </div>
 
 <p align="center">— ✦ —</p>
@@ -196,7 +142,7 @@ python -m compliance_engine list-rules --lang en   # 列出英文规则库（14 
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
-合同审查引擎的规则内核可直接以库方式调用：
+规则内核可直接以库方式调用：
 
 ```python
 from compliance_engine.engine import ComplianceEngine
@@ -212,22 +158,6 @@ print(to_json(report))
 
 需要 LLM 增强时，实现 `Document Engine.py` 里的 `LLMProvider` 协议并注入即可；不注入则完全离线运行。
 
-剧情多分支推演可按库方式调用（需在 `story-engine/` 目录下运行）：
-
-```python
-import branch_simulator as BS
-
-sim = BS.BranchSimulator(engine)          # engine 已推进到分叉点
-branches = sim.fork([                     # 大纲用「A -> B -> C」，缺箭头会被拦下
-    ("妥协线", "林夏接受第三方评审 -> 项目延期两周 -> 成本回落到预算内"),
-    ("对抗线", "林夏拒绝第三方评审 -> 坚持自研上线 -> 预算超支"),
-])
-print(sim.table(branches))                # 终端对比表
-new_engine = sim.pick(branches, "折中线")  # 合流：返回该分支的引擎实例
-```
-
-命令行等价形式：`python branch_simulator.py --demo`，或 `--variants branch_variants.example.json --out 报告目录` 导出 Markdown 与 JSON。
-
 </div>
 
 <p align="center">— ✦ —</p>
@@ -236,129 +166,33 @@ new_engine = sim.pick(branches, "折中线")  # 合流：返回该分支的引�
 
 ```
 STORY-ENGINE/
-├── story-engine/                  # 引擎一 · 故事引擎（长篇叙事一致性审计）
-│   ├── Story Engine for Creator.py
-│   ├── TEMPLATE.md                # 通用模板说明（结构 / 最小调用 / 定制三层 / 验收清单）
-│   ├── logic_validators.py        # 四类结构化逻辑校验器（语言无关、确定性、零依赖）
-│   ├── branch_simulator.py        # 剧情多分支推演（外部沙盒：快照 → 派生 → 独立推演 → 对比 → 选线）
-│   ├── branch_variants.example.json  # 分支输入示例（label + outline + 可选角色档案）
-│   ├── extraction/                # 上游抽取层（散文 → EventNode，契约与校验层解耦）
-│   │   ├── schema.py              # EventNode 契约（抽取层与校验层的唯一接口）
-│   │   ├── rule_extractor.py      # 零依赖规则抽取（白盒验收基线 / 降级兜底）
-│   │   └── lexicons/              # 词表档案（example.json 骨架）；换语料 = 换词表，不改代码
-│   └── adapters/                  # 语言适配层（协议见 spec.md）
-│       ├── spec.md                # 语言包协议（六方法 + 部署约束 + 已知边界）
-│       └── zh.py                  # 中文参考实现（45 类语言常量 + 六方法）
-├── document-engine/               # 引擎二 · 合同审查引擎
+├── document-engine/               # 合同审查引擎
 │   ├── Document Engine.py         # LLM 增强入口（LLMProvider 协议 + OpenAIProvider）
 │   ├── compliance_engine/         # 规则内核（离线、零依赖）
 │   │   ├── engine.py / models.py / auditors.py / rules.py / report.py
 │   │   ├── cli.py                 # audit / list-rules / demo
 │   │   ├── rules/                 # contract.json / regulation.json / official_doc.json / common.json
+│   │   ├── rules/en/              # 英文规则库（14 条，与中文逐条对齐）
 │   │   └── demo.py
+│   ├── web/                       # 单页交互界面（纯前端，可离线打开）
+│   ├── tests/
 │   └── demo_output/               # 演示产物（git 忽略）
 ├── assets/                        # banner.svg/png、overview.svg/png
 ├── GLOSSARY.md                    # 术语表
+├── app.js / index.html            # 浏览器内运行规则内核的测试页（Pyodide）
 ├── LICENSE
-└── README-zh.md
+└── README.md
 ```
 
 <p align="center">— ✦ —</p>
 
-## ✦ 语料依赖（clone 后需自备）
+## ✦ 适用边界（写在文档里，不藏在代码里）
 
-本模板**不内置语料**。`corpus/` 与 `corpus_audit/` 被 `.gitignore` 忽略，clone 后均为空：
-
-- 客户语料放在 `story-engine/corpus/<案卷名>/NNN <章名>.txt`（三位序号前缀 + 空格），`extraction/rule_extractor.py` 按文件名顺序读取；
-- 词表从 `extraction/lexicons/example.json` 复制为新档案后替换内容，再 `load_lexicon("<档案名>")` 载入；
-- 引擎本体 `Story Engine for Creator.py` **不依赖语料**可独立运行，但**必须与 `adapters/` 目录同级部署**——适配器缺失时启动即报错，不做静默回退；
-- 上文「适用边界」中的实测数据来自此前红楼梦 / 水浒语料的审计结论，语料本身不在仓库内。
-
-<p align="center">— ✦ —</p>
-
-## ✦ 适用边界（基于实测，非设计目标声明）
-
-以下结论来自本仓 **红楼梦 120 回全量 + 四大名著 + 工作区 5 份现代中文文档** 的实测，可复现、可回原文核验。
-
-### 已验证可用
-
-| 文体 / 场景 | 状态 | 实测依据 |
-|---|---|---|
-| 明清章回小说（古白话、半文半白） | ✅ 可用 | 四大名著风格族全部正确路由 `eastern_ancient`；红楼梦 120 回全量可跑，悬空节点 0，审计链 120 块 0 断点 |
-| 全知说书人叙事 | ✅ 可用 | `narration_mode="omniscient"` 下叙事立场审计 0 误报（默认 `chronicler` 会把「原来」「殊不知」误判为全知解说腔） |
-| 长篇群像（人物 50+） | ✅ 可用 | 红楼梦 206 项角色词表 + 16 组别称下说话人归属正常；**不注入词表时角色归属不可信** |
-| 文风一致性度量 | ✅ 可用 | `prose_style` 七项指标在 `eastern_ancient` 族下可复现（句长 / 虚字密度 / 节奏变异 / tell 密度 / 视角头跳 / 近距复用 / 语域） |
-
-### 已验证不可用 —— 需针对性定制开发
-
-| 文体 / 场景 | 状态 | 实测依据 |
-|---|---|---|
-| 现代中文小说（都市 / 网文 / 科幻） | 需针对性定制开发 | 工作区 5 份现代中文文档 **5/5 被判古典族**（4×`eastern_ancient`、1×`classical_poetry`） |
-| 现代说明文 / 技术文档 / 公文 | 需针对性定制开发 | 同上 |
-| 英文及非中文 | 需针对性定制开发（另需目标语言语料与验收样本） | `adapters/` 仅有中文参考实现；跨语言**无语料、无验收**，协议就绪 ≠ 能力就绪 |
-| 短篇（< 300 汉字） | 需针对性定制开发 | 句数不足，节奏 / tell 密度等返回「样本不足」 |
-
-**误判根因（已定位，未修复）**：风格族判定用的「文言虚字计数」特征**无判别力**——现代中文的「之 / 于 / 以 / 而 / 其 / 者」（之后、于是、以及、而且、其中）与文言虚字同形，实测现代文档密度 **23.4‰** 反而**高于**红楼梦 **20.65‰**；句长亦重叠（现代长句 23–33 ≈ 红楼梦 20）。
-
-上表方向**不作为通用交付能力**：须按目标文体 / 语言 / 场景做针对性定制开发（风格族判定特征、词表、验收样本一并重建），不可直接套用现有中文古典小说配置。
-
-### 名义有能力、实测未产出 —— 需针对性定制开发
-
-| 功能 | 实际情况 |
-|---|---|
-| 台词认知审计（`forbidden_knowledge`） | 需角色知识模型；未配置即跳过。红楼梦实测 0 issues 属「未启用」，**不是「无问题」** → 需针对性定制开发 |
-| 台词语域审计（`register_hints`） | 同上 → 需针对性定制开发 |
-| 伏笔台账 | 引擎内关键词路径仅识别「埋下 / 回收」类元语言关键词，红楼梦正文不用此类语，实测 set/pay = **0**；新流水线 `logic_validators.audit_foreshadow_gap` 需抽取层给出显式 SET/PAY 标记，规则路径同样为 0 → 需针对性定制开发 |
-| 时空校验 | 已有专用流水线（`extraction/` → `logic_validators.py`），但**规则抽取完整坐标率实测 0.1%**（红楼梦 120 回 21,439 节点），时空/时间线校验在规则路径下无可判输入；LLM 抽取路径接口已留、端点未接通 → 需针对性定制开发 |
-| 因果五步算子 | 大纲式输入（`A -> B`）才有意义；直接喂整段散文会退化为逐句拆解 → 需针对性定制开发 |
-| 哈希链存证 | **非确定性缺陷已修复**（2026-10）：`_strip_nondeterminism` 在入哈希前剥离 uuid 派生字段，实测「同内容同哈希 ✅ / 内容敏感 ✅」；残余限制 = 仅防随机字段扰动，不防恶意同哈希构造（此项已实测通过，非定制开发项） |
-| LLM 深诊 | 需自备 OpenAI 兼容端点 key；不注入则降级为纯规则 → 需针对性定制开发 |
-
-### 逻辑漏洞检测流水线（2026-10 新增，实测边界）
-
-`logic_validators.py` + `extraction/` 构成「散文 → EventNode → 四校验器 → 责任锚定 → 报告」流水线（原编排器 `detect_logic_gaps.py` 已随名著链路移除，报告层按 `TEMPLATE.md` 自行编排），四校验器：时空冲突、死而复生（按行文顺序）、时间倒退（同章）、伏笔未回收。均遵循宁缺毋滥：坐标缺失即跳过。
-
-| 项 | 实测值（红楼梦 120 回） |
-|---|---|
-| 抽取节点 / 角色 | 21,439 / 66（词表覆盖） |
-| time / place / 完整坐标覆盖率 | 6.1% / 1.0% / **0.1%** |
-| state 覆盖率（死/生） | 25.7%（5 / 5,511） |
-| 冲突检出 | **0**（瓶颈在上游抽取层，非校验器） |
-| 死亡节点准确率（回原文核验） | 4/4 |
-| 白盒验收 | 首轮 31 条候选逐条回原文核验，0 真漏洞；归纳 12 类假阳性全部规则化，复跑 0 冲突 |
-| 黄金样本复测（水浒 007/010/016） | 修复前 1 条诗句 FP → 修复后 0 冲突 |
-
-**已知盲区**：非词汇化死亡漏检（晴雯 ch77、凤姐 ch114 幕后追述、尤三姐 ch66 全文无死亡词汇）；亲属称谓指代无法归属（「長孫媳婦」「妹子」）；鬼魂显灵误触死→生校验（须人工复核）；判词-vs-正文矛盾不属四校验器覆盖类。
-
-**后续路径**：① LLM 抽取层（接口已留）攻击 0.1% 覆盖率瓶颈；② 第五类校验器「谶语-正文对账」并入编排器；③ 词表补亲属称谓映射与死亡词汇。
-
-### 剧情多分支推演（2026-10 新增，实测边界）
-
-`branch_simulator.py` 在引擎之外做分叉，主引擎一行未改。实测样例：3 条分支共用同一分叉点（第 1 章后，2 个节点），`copy.deepcopy` 隔离后各自推进，基线章节数保持不变。
-
-| 项 | 实测状态 |
-|---|---|
-| 状态隔离 | ✅ 分支 A 追加 `妥协`、B 追加 `对抗`，基线 traits 仍为 `['固执']`，无共享引用泄漏 |
-| 独立推演 | ✅ 各分支独立 `plan_chapter` → `render_chapter` → `audit_text` |
-| 合流 | ✅ `pick()` 返回分支引擎，可继续推下一章（章节数 2 → 3），基线未被污染 |
-| 结构防呆 | ✅ 四类结构破坏（缺顶层字段 / 缺 `collapse_verdict` / 缺 `converged` / 缺 `all_closed`）全部显式拦截 |
-| 溯源指纹 | ✅ 取节点语义文本 SHA1，跨运行稳定（`90980cd97164`）；`node_id` 为 uuid4，不可用于溯源 |
-| 无箭头大纲 | ✅ 前置拦截（主引擎会将其降级为「前提 +（待续）」占位节点，不拦会被误计为可用分支） |
-
-**已知边界**：
-
-- **不自动生成分支** —— 只负责推演与比较，候选走向由作者给出。自动生成需接入 LLM，未实现。
-- **只在章边界分叉** —— 节点级分叉会让同一章内出现互斥事实，审计立即互斥。
-- **`strict_characters` 是规避而非修复** —— 它临时屏蔽模块级 `auto_register_characters`，避免「成本」这类普通名词被注册成角色；根因仍在主引擎的 `_is_plausible_name`。
-- **伏笔面几乎恒红** —— `all_passed` 要求 SET 全部 PAY，单章新分支天然留下未回收项，故必须看五项失败面分布，不能只看总布尔值。
-- **内存随分支数线性增长** —— 每条分支是一份完整引擎深拷贝；当前实测到 4 条，未做惰性渲染。
-
-### 使用前提（三条，缺一则结论不可信）
-
-1. **角色词表**（`known_names` / `characters`）是因果层可用的前提；不提供则角色归属与悬空判定不可信。
-2. **叙事立场**需显式指定；默认 `chronicler` 适用于史官旁观，古白话长篇小说应传 `omniscient`。
-3. 引擎文件必须与 `adapters/` 目录**同级部署**，适配器缺失时启动即报错（不做静默回退）。
-
+1. **规则库是可争的判断，不是定理。** 判定来自 `rules/*.json` 的明文规则，命中即判、无概率输出；不同意某条规则可以直接改 JSON，或用 `--rules-dir` 换一整套规则库。
+2. **规则覆盖有限。** 四类文档的要素与条款清单来自内置规则库，不等于法律上的完备审查；未命中的条款不代表合规。
+3. **不构成法律意见。** 报告用于定位风险与责任归属，最终结论须由具备资质的人签批。
+4. **LLM 层可选且可关。** 不注入 `LLMProvider` 时全程离线、零外呼；注入后外发内容与端点由使用者自行控制。
+5. **仓库不再包含故事引擎。** 长篇叙事一致性审计、世界观抽取、剧情多分支推演等能力已随 `story-engine/` 一并移除，见上方「仓库变更」。
 
 <p align="center">— ✦ —</p>
 
@@ -384,4 +218,4 @@ STORY-ENGINE/
   &nbsp;·&nbsp;
   <a href="mailto:ai@nohnlins.com">ai@nohnlins.com</a>
 </p>
-<p align="center"><sub>NOHN AI · STORY-ENGINE（故事引擎 · 合同审查引擎）</sub></p>
+<p align="center"><sub>NOHN AI · STORY-ENGINE（合同审查引擎）</sub></p>

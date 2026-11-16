@@ -41,7 +41,7 @@ const I18N = {
     downloadJson: "下载 JSON 报告",
     testTitle: "引擎自检",
     testRunning: "自检中…",
-    foot1: "引擎：story-engine 仓库 document-engine/compliance_engine（纯 Python 标准库，零第三方依赖；规则库 rules/*.json 与 rules/en/*.json）。判定为决定论式：命中即判定，不输出概率。",
+    foot1: "引擎：本仓库 document-engine/compliance_engine（纯 Python 标准库，零第三方依赖；规则库 rules/*.json 与 rules/en/*.json）。判定为决定论式：命中即判定，不输出概率。",
     foot2: "加载方式：页面通过 fetch 取同仓库的引擎源码与规则 JSON，写入 Pyodide 虚拟文件系统后运行；本页不复制引擎代码，不改动引擎。",
   },
   en: {
@@ -66,7 +66,7 @@ const I18N = {
     downloadJson: "Download JSON report",
     testTitle: "Engine self-test",
     testRunning: "Running self-test…",
-    foot1: "Engine: document-engine/compliance_engine from the story-engine repo (pure Python standard library, zero third-party dependencies; rule libraries rules/*.json and rules/en/*.json). Deterministic verdicts: a hit is a verdict, no probabilities.",
+    foot1: "Engine: document-engine/compliance_engine from this repository (pure Python standard library, zero third-party dependencies; rule libraries rules/*.json and rules/en/*.json). Deterministic verdicts: a hit is a verdict, no probabilities.",
     foot2: "Loading: this page fetches the engine source and rule JSON files from the same repo, writes them into Pyodide's virtual filesystem, and runs them. No engine code is duplicated in this page.",
   },
 };

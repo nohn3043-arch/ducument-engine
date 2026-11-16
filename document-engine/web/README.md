@@ -15,7 +15,7 @@
 
 ```bash
 # 在仓库根目录起一个静态服务器，让 ../compliance_engine/ 可以被 fetch 到
-cd story-engine
+cd Story-engine
 python3 -m http.server 8000
 # 打开 http://localhost:8000/document-engine/web/
 ```

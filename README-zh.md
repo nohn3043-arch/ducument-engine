@@ -172,6 +172,12 @@ python -m compliance_engine demo
   - 定义 `LLMProvider` 协议，任何实现该协议的类都可注入引擎。
   - 自带 `OpenAIProvider`：用 `urllib` 调用 OpenAI 兼容接口（`gpt-4o` / `deepseek-chat` 等），**零外部依赖**。
   - 不配置任何 LLM 时，规则内核独立完整运行。
+- **英文规则库**（`compliance_engine/rules/en/`）—— 与中文规则逐条对齐（同一规则 ID，英文关键词 / 正则表达），共 14 条，覆盖合同 / 法规 / 公文 / 通用四类。语言默认按文本中英文占比自动判定，也可用 `--lang en` / `--lang zh` 显式指定；要素清单（目的 / 适用范围 / 职责 / 流程 / 罚则 / 生效等）同样有英文版，英文文档不再因“中文词不存在”而误判缺失。中文路径行为不变。
+
+```bash
+python -m compliance_engine audit --type regulation --input policy.txt --lang en --format json
+python -m compliance_engine list-rules --lang en   # 列出英文规则库（14 条）
+```
 
 两个引擎共享同一套确定性审计设计语言（责任闭环锚定、风险分级、全链可追溯），但分别面向创作叙事与企业文档场景。
 

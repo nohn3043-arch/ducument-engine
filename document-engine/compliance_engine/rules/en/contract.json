@@ -1,0 +1,64 @@
+{
+  "doc_type": "contract",
+  "lang": "en",
+  "rules": [
+    {
+      "id": "CT-001",
+      "category": "Risk clause",
+      "severity": "CRITICAL",
+      "kind": "regex",
+      "patterns": [
+        "(?i)final right of interpretation",
+        "(?i)not (be |be held )?liable",
+        "(?i)unilateral(ly)? terminat",
+        "(?i)unconditional(ly)?",
+        "(?i)exempt(ion)? from liability"
+      ],
+      "message": "One-sided advantage or disclaimer clause",
+      "suggestion": "Adjust to a mutual clause"
+    },
+    {
+      "id": "CT-002",
+      "category": "Compliance red line",
+      "severity": "FATAL",
+      "kind": "regex",
+      "pattern": "(?i)minimum wage[\\s\\S]{0,20}(below|less than|under)",
+      "message": "Pay clause may breach the minimum wage standard",
+      "suggestion": "Check the local minimum wage standard"
+    },
+    {
+      "id": "CT-003",
+      "category": "Compliance red line",
+      "severity": "FATAL",
+      "kind": "regex",
+      "pattern": "(?i)liquidated damages[\\s\\S]{0,15}(exceed|more than|above)[\\s\\S]{0,6}(30%|thirty per ?cent)",
+      "patterns": [
+        "(?i)liquidated damages[\\s\\S]{0,15}(exceed|more than|above)[\\s\\S]{0,6}(30%|thirty per ?cent)",
+        "(?i)liquidated damages[\\s\\S]{0,15}(3[1-9]|[4-9][0-9]|100)\\s*%"
+      ],
+      "message": "Liquidated damages may exceed the statutory cap",
+      "suggestion": "Liquidated damages should not exceed 30% of actual loss"
+    },
+    {
+      "id": "CT-004",
+      "category": "Compliance red line",
+      "severity": "FATAL",
+      "kind": "regex",
+      "pattern": "(?i)overtime[\\s\\S]{0,10}(without compensation|unpaid|no overtime pay)",
+      "message": "Unpaid overtime clause breaches labour law",
+      "suggestion": "Pay overtime at the statutory rate"
+    },
+    {
+      "id": "CT-005",
+      "category": "Risk clause",
+      "severity": "CRITICAL",
+      "kind": "regex",
+      "patterns": [
+        "(?i)\\bsecurity deposit\\b",
+        "(?i)\\bdeposit\\b"
+      ],
+      "message": "Deposit clause must state refund conditions and a deadline",
+      "suggestion": "Add refund conditions, deadline and interest terms"
+    }
+  ]
+}

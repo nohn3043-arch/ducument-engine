@@ -1,0 +1,37 @@
+{
+  "doc_type": "official_doc",
+  "lang": "en",
+  "rules": [
+    {
+      "id": "OD-001",
+      "category": "Format",
+      "severity": "CRITICAL",
+      "kind": "regex",
+      "pattern": "(?i)\\b\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}\\b",
+      "message": "Ambiguous numeric date format (DD/MM vs MM/DD)",
+      "suggestion": "Use an unambiguous date format (e.g. 26 June 2018 or ISO 2026-06-26)"
+    },
+    {
+      "id": "OD-002",
+      "category": "Format",
+      "severity": "WARNING",
+      "kind": "regex",
+      "pattern": "(?i)(request for (approval|instructions))[\\s\\S]{0,80}(for (your )?information( only)?)",
+      "message": "Request-for-approval mixed with an information report",
+      "suggestion": "Use a request for approval when seeking instructions and a report when updating"
+    },
+    {
+      "id": "OD-003",
+      "category": "Wording",
+      "severity": "WARNING",
+      "kind": "regex",
+      "patterns": [
+        "(?i)\\bapproximately\\b",
+        "(?i)\\broughly\\b",
+        "(?i)more or less"
+      ],
+      "message": "Vague wording in an official document",
+      "suggestion": "Use exact figures and wording"
+    }
+  ]
+}

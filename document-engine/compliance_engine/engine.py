@@ -25,14 +25,19 @@ from .models import (
     RiskLevel,
     TraceLog,
 )
-from .rules import RuleEngine
+from .rules import RuleEngine, detect_language
 
 _SECTION_RE = re.compile(r"^(第[一二三四五六七八九十百千0-9]+[条款]|[0-9]+[.、．]|[一二三四五六七八九十]+[、．])")
+_SECTION_RE_EN = re.compile(
+    r"^(?:Section\s+[0-9]+|Chapter\s+[0-9]+|[0-9]+\.[0-9]+|[0-9]+\s+(?=[A-Z]))"
+)
 
 
 class ComplianceEngine:
-    def __init__(self, rules_dir: Optional[Path] = None):
-        self.rule_engine = RuleEngine(rules_dir)
+    def __init__(self, rules_dir: Optional[Path] = None, lang: Optional[str] = None):
+        self._rules_dir = Path(rules_dir) if rules_dir else None
+        self._lang = (lang or "zh").strip().lower() if lang else None
+        self.rule_engine = RuleEngine(self._rules_dir, self._lang or "zh")
         self.account = ResponsibilityAccount(
             organization="Compliance-Core",
             role="ComplianceAuditor",
@@ -45,22 +50,26 @@ class ComplianceEngine:
         text: str,
         doc_type: DocType,
         title: str = "",
+        lang: Optional[str] = None,
     ) -> AuditReport:
+        eff_lang = (lang or self._lang or detect_language(text)).strip().lower()
+        if eff_lang != self.rule_engine.lang:
+            self.rule_engine = RuleEngine(self._rules_dir, eff_lang)
         self.trace = []
         self.account.bind_stage("audit")
-        self._log("START", None, f"启动审计：{doc_type.value}")
+        self._log("START", None, f"启动审计：{doc_type.value} / lang={eff_lang}")
 
-        nodes = self._segment(text)
+        nodes = self._segment(text, eff_lang)
         self._log("SEGMENT", None, f"文书分节完成：{len(nodes)} 个审计单元")
 
         findings: List[AuditFinding] = []
         findings.extend(self.rule_engine.scan(text, doc_type))
         self._log("RULE_SCAN", None, f"规则扫描命中：{len(findings)} 条")
 
-        findings.extend(CompletenessAuditor().audit(text, doc_type))
+        findings.extend(CompletenessAuditor().audit(text, doc_type, lang=eff_lang))
         findings.extend(ConsistencyAuditor().audit(text, doc_type))
         findings.extend(BalanceAuditor().audit(text, doc_type))
-        findings.extend(FormatAuditor().audit(text, doc_type))
+        findings.extend(FormatAuditor().audit(text, doc_type, lang=eff_lang))
         self._log("DOC_AUDIT", None, f"文档级审计完成：累计 {len(findings)} 条")
 
         findings = self._dedup(findings)
@@ -86,7 +95,8 @@ class ComplianceEngine:
         )
 
     # ---------- 内部流程 ----------
-    def _segment(self, text: str) -> List[AuditNode]:
+    def _segment(self, text: str, lang: str = "zh") -> List[AuditNode]:
+        section_re = _SECTION_RE_EN if lang == "en" else _SECTION_RE
         nodes: List[AuditNode] = []
         current: List[str] = []
         current_section = "开头"
@@ -116,7 +126,7 @@ class ComplianceEngine:
             ln = raw.strip()
             if not ln:
                 continue
-            m = _SECTION_RE.match(ln)
+            m = section_re.match(ln)
             if m:
                 flush()
                 current_section = m.group(0).strip()

@@ -1,0 +1,47 @@
+{
+  "doc_type": "regulation",
+  "lang": "en",
+  "rules": [
+    {
+      "id": "RG-001",
+      "category": "Responsibility",
+      "severity": "WARNING",
+      "kind": "regex",
+      "patterns": [
+        "(?i)relevant (department|personnel|parties|authority|authorities)",
+        "(?i)as appropriate",
+        "(?i)as the case may be"
+      ],
+      "message": "Responsible party unclear",
+      "suggestion": "Name the specific department or role"
+    },
+    {
+      "id": "RG-002",
+      "category": "Compliance red line",
+      "severity": "CRITICAL",
+      "kind": "regex",
+      "patterns": [
+        "(?i)without (prior )?approval",
+        "(?i)at (its|their) own discretion",
+        "(?i)unauthori[sz]ed",
+        "(?i)unilaterally"
+      ],
+      "message": "Authority gap: actions allowed without approval",
+      "suggestion": "Add the approval process and authority limits"
+    },
+    {
+      "id": "RG-003",
+      "category": "Risk clause",
+      "severity": "WARNING",
+      "kind": "regex",
+      "patterns": [
+        "(?i)is entitled to",
+        "(?i)at (its|their) sole discretion",
+        "(?i)\\bto sign any\\b",
+        "(?i)may (decide|approve) at (its|their) discretion"
+      ],
+      "message": "Authority wording too broad; boundaries needed",
+      "suggestion": "Define the scope and limits of the authority"
+    }
+  ]
+}

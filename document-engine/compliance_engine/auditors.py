@@ -35,6 +35,38 @@ _COMPLETENESS: Dict[DocType, List[Dict[str, object]]] = {
     DocType.GENERIC: [],
 }
 
+# 英文版必备要素：与中文版逐项对齐（同一要素的不同语言表达）。
+# 关键词做大小写不敏感匹配；英文关键词用词干/短语以覆盖单复数与时态。
+_COMPLETENESS_EN: Dict[DocType, List[Dict[str, object]]] = {
+    DocType.CONTRACT: [
+        {"name": "Parties", "keywords": ["party a", "party b", "the parties", "parties hereto"]},
+        {"name": "Subject matter", "keywords": ["subject matter", "scope of work", "services", "goods", "products", "deliverables"]},
+        {"name": "Price", "keywords": ["price", "amount", "fee", "fees", "payment", "consideration"]},
+        {"name": "Term", "keywords": ["term", "duration", "delivery date", "deadline", "completion"]},
+        {"name": "Liability for breach", "keywords": ["breach", "default", "liability"]},
+        {"name": "Dispute resolution", "keywords": ["dispute", "arbitration", "litigation", "court", "jurisdiction", "governing law"]},
+    ],
+    DocType.REGULATION: [
+        {"name": "Purpose", "keywords": ["purpose", "executive summary", "objective"]},
+        {"name": "Scope", "keywords": ["scope", "applies to", "this policy", "this regulation"]},
+        {"name": "Responsibilities", "keywords": ["responsib", "is responsible", "responsible for"]},
+        {"name": "Procedure", "keywords": ["procedure", "process", "approval process", "steps"]},
+        {"name": "Penalties", "keywords": ["penalt", "sanction", "disciplinary"]},
+        {"name": "Effective date", "keywords": ["effective date", "effective from", "shall take effect", "comes into effect", "comes into force"]},
+    ],
+    DocType.OFFICIAL_DOC: [
+        {"name": "Title", "keywords": ["re:", "subject:", "regarding"]},
+        {"name": "Addressee", "keywords": ["to:", "dear", "all departments", "all staff"]},
+        {"name": "Date of issue", "keywords": ["date", "dated"]},
+        {"name": "Reference number", "keywords": ["ref", "reference no", "document no"]},
+    ],
+    DocType.GENERIC: [],
+}
+
+_MONTHS_EN = (
+    "January|February|March|April|May|June|July|August|September|October|November|December"
+)
+
 _ASSIGN_RE = re.compile(
     r"([\u4e00-\u9fa5]{2,8})(?:为|是|：)([0-9]{2,}[年月日元%]|[一二三四五六七八九十百千]+[年月日元%])"
 )
@@ -46,19 +78,30 @@ _PARTY_DUTY_RE = re.compile(r"(甲方|乙方)(?:应|须|应当|有义务)")
 class CompletenessAuditor:
     """要素完整性：必备要素缺失即告警（决定论：缺失=命中）。"""
 
-    def audit(self, text: str, doc_type: DocType) -> List[AuditFinding]:
+    def audit(self, text: str, doc_type: DocType, lang: str = "zh") -> List[AuditFinding]:
+        table = _COMPLETENESS_EN if lang == "en" else _COMPLETENESS
+        haystack = text.lower() if lang == "en" else text
         findings: List[AuditFinding] = []
-        for item in _COMPLETENESS.get(doc_type, []):
+        for item in table.get(doc_type, []):
             name = item["name"]
             keywords = item["keywords"]
-            if not any(k in text for k in keywords):
+            if not any(k.lower() in haystack for k in keywords):
+                if lang == "en":
+                    message = f"Missing required element: {name}"
+                    suggestion = (
+                        f"Add content on '{name}' "
+                        f"(e.g. {' / '.join(keywords[:3])})"
+                    )
+                else:
+                    message = f"缺少必备要素：{name}"
+                    suggestion = f"补充「{name}」相关内容（如：{' / '.join(keywords[:3])}）"
                 findings.append(
                     AuditFinding(
                         rule_id=f"COMPLETE-{doc_type.value}",
-                        category="要素完整性",
+                        category="要素完整性" if lang != "en" else "Completeness",
                         severity=RiskLevel.CRITICAL,
-                        message=f"缺少必备要素：{name}",
-                        suggestion=f"补充「{name}」相关内容（如：{' / '.join(keywords[:3])}）",
+                        message=message,
+                        suggestion=suggestion,
                         location="全文",
                         snippet="",
                     )
@@ -127,9 +170,11 @@ class BalanceAuditor:
 class FormatAuditor:
     """公文格式：文号缺失、落款缺失。"""
 
-    def audit(self, text: str, doc_type: DocType) -> List[AuditFinding]:
+    def audit(self, text: str, doc_type: DocType, lang: str = "zh") -> List[AuditFinding]:
         if doc_type != DocType.OFFICIAL_DOC:
             return []
+        if lang == "en":
+            return self._audit_en(text)
         findings: List[AuditFinding] = []
         if "〔" not in text and "[" not in text:
             findings.append(
@@ -152,6 +197,38 @@ class FormatAuditor:
                     message="缺少成文日期（YYYY年MM月DD日）",
                     suggestion="在落款处补充成文日期",
                     location="落款",
+                    snippet="",
+                )
+            )
+        return findings
+
+    def _audit_en(self, text: str) -> List[AuditFinding]:
+        """英文公文格式：文号缺失、成文日期缺失（与中文版逐项对齐）。"""
+        findings: List[AuditFinding] = []
+        if not re.search(r"(?i)\b(ref\.|reference\s+(no\.?|number)|document\s+no\.?)", text):
+            findings.append(
+                AuditFinding(
+                    rule_id="FORMAT-OFFICIAL",
+                    category="Format",
+                    severity=RiskLevel.CRITICAL,
+                    message="Missing document reference number (e.g. Ref. LE02/2026)",
+                    suggestion="Add a reference number below the title",
+                    location="Below title",
+                    snippet="",
+                )
+            )
+        if not re.search(
+            rf"(?i)\b\d{{1,2}}\s+({_MONTHS_EN})\s+\d{{4}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b",
+            text,
+        ):
+            findings.append(
+                AuditFinding(
+                    rule_id="FORMAT-OFFICIAL",
+                    category="Format",
+                    severity=RiskLevel.WARNING,
+                    message="Missing date of issue (e.g. 26 June 2018 or ISO 2026-06-26)",
+                    suggestion="Add the date of issue at the sign-off",
+                    location="Sign-off",
                     snippet="",
                 )
             )

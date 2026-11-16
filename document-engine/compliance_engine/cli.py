@@ -3,7 +3,9 @@
 示例：
   python -m compliance_engine audit --type contract --input 合同.txt --output 报告.html
   python -m compliance_engine audit --type regulation --input 制度.txt --format json
+  python -m compliance_engine audit --type regulation --input policy.txt --lang en --format json
   python -m compliance_engine list-rules --type contract
+  python -m compliance_engine list-rules --lang en
   python -m compliance_engine demo
 """
 
@@ -31,8 +33,10 @@ def _write_output(path: str, content: str) -> None:
 def cmd_audit(args: argparse.Namespace) -> int:
     text = _read_input(args.input)
     doc_type = DocType.from_str(args.type)
+    lang = None if args.lang == "auto" else args.lang
     engine = ComplianceEngine(rules_dir=Path(args.rules_dir) if args.rules_dir else None)
-    report = engine.audit(text, doc_type, title=args.title or Path(args.input).stem)
+    report = engine.audit(text, doc_type, title=args.title or Path(args.input).stem,
+                          lang=lang)
 
     fmt = args.format
     if args.output:
@@ -54,7 +58,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
 
 
 def cmd_list_rules(args: argparse.Namespace) -> int:
-    engine = ComplianceEngine(rules_dir=Path(args.rules_dir) if args.rules_dir else None)
+    lang = None if args.lang == "auto" else args.lang
+    engine = ComplianceEngine(rules_dir=Path(args.rules_dir) if args.rules_dir else None,
+                              lang=lang or "zh")
     doc_type = DocType.from_str(args.type) if args.type else None
     rules = engine.rule_engine.list_rules(doc_type)
     for r in rules:
@@ -90,12 +96,16 @@ def build_parser() -> argparse.ArgumentParser:
                          help="输出格式（默认 html；指定 --output 时按扩展名推断）")
     p_audit.add_argument("--output", default="", help="输出文件路径")
     p_audit.add_argument("--rules-dir", default="", help="自定义规则目录")
+    p_audit.add_argument("--lang", default="auto", choices=["auto", "zh", "en"],
+                         help="规则语言：auto 按文本中英文占比自动判定（默认）")
     p_audit.set_defaults(func=cmd_audit)
 
     p_list = sub.add_parser("list-rules", help="列出规则库")
     p_list.add_argument("--type", default="", choices=[t.value for t in DocType],
                         help="按类型过滤")
     p_list.add_argument("--rules-dir", default="", help="自定义规则目录")
+    p_list.add_argument("--lang", default="zh", choices=["zh", "en"],
+                        help="规则语言（默认 zh；en 列出英文规则库）")
     p_list.set_defaults(func=cmd_list_rules)
 
     p_demo = sub.add_parser("demo", help="运行内置演示（生成示例报告）")

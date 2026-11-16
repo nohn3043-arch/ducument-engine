@@ -14,16 +14,37 @@ from .models import AuditFinding, DocType, RiskLevel
 _DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 
 
+def detect_language(text: str) -> str:
+    """按中英文字符占比判定文书语言：'zh' 或 'en'。
+
+    决定论式：纯中文→zh，纯英文→en，混合文本按汉字占比 >= 20% 判 zh。
+    英文规则库与中文规则库 ID 一一对应，判定只决定加载哪一套。
+    """
+    cjk = sum(1 for ch in text if "\u4e00" <= ch <= "\u9fff")
+    latin = sum(1 for ch in text if ch.isascii() and ch.isalpha())
+    if cjk == 0:
+        return "en"
+    if latin == 0:
+        return "zh"
+    return "zh" if cjk / (cjk + latin) >= 0.2 else "en"
+
 
 class RuleEngine:
-    def __init__(self, rules_dir: Optional[Path] = None):
+    def __init__(self, rules_dir: Optional[Path] = None, lang: Optional[str] = None):
         self.rules_dir = Path(rules_dir) if rules_dir else _DEFAULT_RULES_DIR
+        self.lang = (lang or "zh").strip().lower()
         self.rules: List[Dict[str, Any]] = []
         self._load_all()
 
     def _load_all(self) -> None:
         if not self.rules_dir.is_dir():
             raise FileNotFoundError(f"规则目录不存在: {self.rules_dir}")
+        if self.lang == "en":
+            en_dir = self.rules_dir / "en"
+            if en_dir.is_dir():
+                for f in sorted(en_dir.glob("*.json")):
+                    self._load_file(f)
+                return
         for f in sorted(self.rules_dir.glob("*.json")):
             self._load_file(f)
 

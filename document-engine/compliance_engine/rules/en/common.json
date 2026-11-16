@@ -1,0 +1,53 @@
+{
+  "doc_type": "generic",
+  "lang": "en",
+  "rules": [
+    {
+      "id": "COM-001",
+      "category": "Wording",
+      "severity": "WARNING",
+      "kind": "regex",
+      "patterns": [
+        "(?i)\\btimely\\b",
+        "(?i)as soon as possible",
+        "(?i)\\bappropriate\\b",
+        "(?i)at (its|their|his|her) discretion",
+        "(?i)as the case may be",
+        "(?i)\\betc\\.",
+        "(?i)\\bif necessary\\b"
+      ],
+      "message": "Vague time / degree wording; responsibility boundary unclear",
+      "suggestion": "Replace with a quantifiable deadline or standard"
+    },
+    {
+      "id": "COM-002",
+      "category": "Risk clause",
+      "severity": "CRITICAL",
+      "kind": "regex",
+      "patterns": [
+        "(?i)not (be |be held )?liable",
+        "(?i)final right of interpretation",
+        "(?i)non-?refundable",
+        "(?i)accepts? no (liability|responsibility)",
+        "(?i)shall not be liable for any"
+      ],
+      "message": "One-sided disclaimer clause; may be held invalid",
+      "suggestion": "Remove or replace with a mutual liability clause"
+    },
+    {
+      "id": "COM-003",
+      "category": "Wording",
+      "severity": "WARNING",
+      "kind": "regex",
+      "patterns": [
+        "(?i)\\babsolute(ly)?\\b",
+        "(?i)100\\s*%",
+        "(?i)\\bnever\\b",
+        "(?i)under no circumstances",
+        "(?i)in any event"
+      ],
+      "message": "Absolute wording; may cause ambiguity or over-commitment",
+      "suggestion": "Replace with qualified wording"
+    }
+  ]
+}

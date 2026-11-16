@@ -2,7 +2,7 @@
 
 # 📖 术语表 · Glossary
 
-**STORY-ENGINE**
+**DOCUMENT ENGINE**
 
 *每个词都用一句人话解释 · Every term explained in one plain sentence*
 
@@ -45,6 +45,6 @@
 
 [← 返回 README](./README.md)
 
-<sub>NOHN AI · STORY-ENGINE</sub>
+<sub>NOHN AI · DOCUMENT ENGINE</sub>
 
 </div>

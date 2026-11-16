@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.png" alt="STORY-ENGINE 横幅" style="width:100%">
+  <img src="assets/banner.png" alt="DOCUMENT ENGINE 横幅" style="width:100%">
 </p>
 
 <p align="center">
@@ -22,14 +22,14 @@
 
 ## ✦ 关于
 
-<p style="font-size:15px;line-height:1.8;color:#2C2C2C">STORY-ENGINE 现在<strong>只提供一个引擎</strong>，共用同一套确定性审计语法：</p>
+<p style="font-size:15px;line-height:1.8;color:#2C2C2C">DOCUMENT ENGINE 现在<strong>只提供一个引擎</strong>，共用同一套确定性审计语法：</p>
 
 <ul style="font-size:15px;line-height:1.8;color:#2C2C2C">
   <li><strong>合同审查引擎（Document Review Engine）</strong> —— 面向企业法务 / 合规的文档复核引擎。对合同、法规、公文与通用文本执行条款级规则扫描与文档级审计（要素完整性 / 一致性 / 权责对等 / 格式），并输出可追溯的复核报告。<strong>规则内核零依赖、可完全离线运行</strong>；`Document Engine.py` 提供可选的 LLM 增强入口。</li>
 </ul>
 
 <p align="center">
-  <img src="assets/overview.png" alt="STORY-ENGINE 概览" style="width:100%">
+  <img src="assets/overview.png" alt="DOCUMENT ENGINE 概览" style="width:100%">
 </p>
 
 </div>
@@ -216,4 +216,4 @@ document-engine/
   &nbsp;·&nbsp;
   <a href="mailto:ai@nohnlins.com">ai@nohnlins.com</a>
 </p>
-<p align="center"><sub>NOHN AI · STORY-ENGINE（合同审查引擎）</sub></p>
+<p align="center"><sub>NOHN AI · DOCUMENT ENGINE（合同审查引擎）</sub></p>

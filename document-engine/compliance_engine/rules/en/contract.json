@@ -55,7 +55,14 @@
       "kind": "regex",
       "patterns": [
         "(?i)\\bsecurity deposit\\b",
-        "(?i)\\bdeposit\\b"
+        "(?i)\\brental deposit\\b",
+        "(?i)\\bdeposit paid\\b",
+        "(?i)\\bdeposit payable\\b",
+        "(?i)\\bdeposit in the amount of\\b",
+        "(?i)\\bdeposit shall be (refunded|returned)\\b",
+        "(?i)\\bdeposit of\\s+(?:USD|US\\$|\\$|EUR|\\u20ac|GBP|\\u00a3|CNY|RMB)?\\s*\\d",
+        "(?i)\\bpay (a|the) deposit\\b",
+        "(?i)\\bdeposit amount\\b"
       ],
       "message": "Deposit clause must state refund conditions and a deadline",
       "suggestion": "Add refund conditions, deadline and interest terms"

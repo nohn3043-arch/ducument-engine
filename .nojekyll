@@ -1,0 +1,1 @@
+# Disable Jekyll so GitHub Pages serves all files as-is, including underscore-prefixed files like __init__.py.

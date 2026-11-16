@@ -116,3 +116,6 @@ class AuditReport:
     generated_at: str = field(
         default_factory=lambda: datetime.now().isoformat(timespec="seconds")
     )
+    # 报告语言：'zh' 或 'en'，决定 HTML/Markdown 外壳的文案语言。
+    # JSON 字段名不受影响；trace 备注仍为引擎内部日志原文。
+    lang: str = "zh"

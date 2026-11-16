@@ -71,6 +71,106 @@ _ASSIGN_RE = re.compile(
     r"([\u4e00-\u9fa5]{2,8})(?:为|是|：)([0-9]{2,}[年月日元%]|[一二三四五六七八九十百千]+[年月日元%])"
 )
 
+_EN_MONTHS = {
+    name.lower(): i + 1
+    for i, name in enumerate(
+        ("January", "February", "March", "April", "May", "June", "July",
+         "August", "September", "October", "November", "December")
+    )
+}
+
+# 英文赋值句：名词短语 + is/are/shall be/will be/equals/: + 数值型取值
+# （金额 / 百分比 / 期限 / 日期）。取值必须以数字或日期开头，避免把
+# "is required"、"is able to" 这类非数值表述误判为赋值。
+_EN_VALUE_RE = (
+    r"(?:"
+    r"\d{1,2}\s+(?:" + _MONTHS_EN + r")\s+\d{4}"
+    r"|\d{4}-\d{2}-\d{2}"
+    r"|(?:" + _MONTHS_EN + r")\s+\d{1,2},?\s+\d{4}"
+    r"|(?:usd|eur|gbp|cny|rmb|hkd|\$|€|£)?\s*\$?\d[\d,]*(?:\.\d+)?\s*"
+    r"(?:%|percent|per\s+cent|months?|days?|years?|weeks?|eur|usd|gbp|euro|euros|dollars?)?"
+    r")"
+)
+_EN_ASSIGN_RE = re.compile(
+    r"(?i)\b(?:the\s+)?([a-z][a-z'’\- ]{1,40}?)\s+"
+    r"(?:is|are|shall be|will be|equals?|:)\s+(" + _EN_VALUE_RE + r")"
+)
+_EN_ASSIGN_STOPKEYS = {"it", "this", "that", "there", "he", "she", "they", "we", "you"}
+
+# 英文定义术语："ABC" means ... / "ABC" shall mean ...，同一缩写定义不同即矛盾。
+_EN_DEFINED_TERM_RE = re.compile(
+    r'"([A-Za-z][A-Za-z0-9]{0,15})"\s+'
+    r"(?:means|shall\s+mean|refers\s+to|is\s+defined\s+as)\s+([^.;\n]{3,100})"
+)
+
+
+def _norm_en_key(raw: str):
+    """英文赋值键归一化：去 the、小写、压缩空白；代词类键直接丢弃。"""
+    key = re.sub(r"\s+", " ", raw.strip().lower())
+    key = re.sub(r"^the\s+", "", key)
+    if len(key) < 3 or key in _EN_ASSIGN_STOPKEYS:
+        return None
+    return key
+
+
+def _norm_en_value(raw: str):
+    """英文取值归一化：日期 → (date, ISO)；数值 → (num, 数值, 单位)；其余原样。
+
+    归一化后比较：USD 50,000 与 50000 USD、1 November 2022 与
+    November 1, 2022、12 months 与 12 month 都视为同一取值，不误报。
+    """
+    v = re.sub(r"\s+", " ", raw.strip().lower().replace(",", "")).rstrip(".")
+    m = re.match(r"^(\d{1,2})\s+([a-z]+)\s+(\d{4})$", v)
+    if m and m.group(2) in _EN_MONTHS:
+        return ("date", f"{m.group(3)}-{_EN_MONTHS[m.group(2)]:02d}-{int(m.group(1)):02d}")
+    m = re.match(r"^([a-z]+)\s+(\d{1,2}),?\s+(\d{4})$", v)
+    if m and m.group(1) in _EN_MONTHS:
+        return ("date", f"{m.group(3)}-{_EN_MONTHS[m.group(1)]:02d}-{int(m.group(2)):02d}")
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", v)
+    if m:
+        return ("date", v)
+    m = re.match(
+        r"^(?:(\$|€|£|usd|eur|gbp|cny|rmb|hkd)\s*)?(\d+(?:\.\d+)?)\s*"
+        r"(%|percent|per\s+cent|months?|days?|years?|weeks?|eur|usd|gbp|euro|euros|dollars?)?$",
+        v,
+    )
+    if m:
+        cur = {"$": "usd", "€": "eur", "£": "gbp"}.get(m.group(1) or "", m.group(1) or "")
+        num = float(m.group(2))
+        unit = (m.group(3) or "").strip()
+        unit = {"euro": "eur", "euros": "eur", "dollars": "usd", "dollar": "usd",
+                "percent": "%", "per cent": "%"}.get(unit, unit)
+        unit = {"day": "days", "week": "weeks", "year": "years",
+                "month": "months"}.get(unit, unit)
+        if not unit:
+            unit = cur
+        return ("num", num, unit)
+    return ("raw", v)
+
+
+# 英文当事方：Party A / Party B，及 First Party / Second Party 别名。
+_EN_PARTY_RE = r"(party\s+a|the\s+first\s+party|party\s+b|the\s+second\s+party)"
+_EN_RIGHT_VERB = (
+    r"(?:(?:shall\s+)?have\s+the\s+right\s+to"
+    r"|has\s+the\s+(?:final\s+|sole\s+|exclusive\s+)?right\s+(?:to|of)"
+    r"|(?:is\s+|shall\s+be\s+)?entitled\s+to"
+    r"|may(?!\s+not\b))"
+)
+_PARTY_RIGHT_RE_EN = re.compile(
+    r"(?i)\b" + _EN_PARTY_RE + r"\b(?:\s+\w+){0,2}?\s+" + _EN_RIGHT_VERB + r"\b"
+)
+_PARTY_DUTY_RE_EN = re.compile(
+    r"(?i)\b" + _EN_PARTY_RE + r"\b\s+"
+    r"(?:shall(?!\s+(?:not\b|have\s+the\s+right\s+to|be\s+entitled\s+to))"
+    r"|must(?!\s+not\b)"
+    r"|is\s+obligated\s+to|is\s+obliged\s+to|shall\s+be\s+responsible\s+for)\b"
+)
+
+
+def _party_side_en(label: str) -> str:
+    label = label.strip().lower()
+    return "A" if label in ("party a", "the first party") else "B"
+
 _PARTY_RIGHT_RE = re.compile(r"(甲方|乙方)(?:有权|可|可以|应)")
 _PARTY_DUTY_RE = re.compile(r"(甲方|乙方)(?:应|须|应当|有义务)")
 
@@ -102,7 +202,7 @@ class CompletenessAuditor:
                         severity=RiskLevel.CRITICAL,
                         message=message,
                         suggestion=suggestion,
-                        location="全文",
+                        location="Full text" if lang == "en" else "全文",
                         snippet="",
                     )
                 )
@@ -110,9 +210,15 @@ class CompletenessAuditor:
 
 
 class ConsistencyAuditor:
-    """一致性：同一赋值短语出现多次但取值不同 → 前后矛盾。"""
+    """一致性：同一赋值短语出现多次但取值不同 → 前后矛盾。
 
-    def audit(self, text: str, doc_type: DocType) -> List[AuditFinding]:
+    中文版：`X为/是/：数值`；英文版：`X is/shall be/= 数值`（金额/百分比/
+    期限/日期）+ 同一定义术语的不同定义。逻辑与中文版对等。
+    """
+
+    def audit(self, text: str, doc_type: DocType, lang: str = "zh") -> List[AuditFinding]:
+        if lang == "en":
+            return self._audit_en(text, doc_type)
         groups: Dict[str, List[str]] = {}
         for m in _ASSIGN_RE.finditer(text):
             key, val = m.group(1), m.group(2)
@@ -134,13 +240,68 @@ class ConsistencyAuditor:
                 )
         return findings
 
+    def _audit_en(self, text: str, doc_type: DocType) -> List[AuditFinding]:
+        """英文版：同一赋值键取值不同（归一化后比较），或同一定义术语
+        定义不同 → 前后矛盾。"""
+        groups: Dict[str, List] = {}
+        raw_vals: Dict[str, List[str]] = {}
+        for m in _EN_ASSIGN_RE.finditer(text):
+            key = _norm_en_key(m.group(1))
+            if key is None:
+                continue
+            groups.setdefault(key, []).append(_norm_en_value(m.group(2)))
+            raw_vals.setdefault(key, []).append(m.group(2).strip())
+        findings: List[AuditFinding] = []
+        for key, vals in groups.items():
+            unique = list(dict.fromkeys(vals))
+            if len(unique) > 1:
+                shown = list(dict.fromkeys(raw_vals[key]))
+                findings.append(
+                    AuditFinding(
+                        rule_id=f"CONSIST-{doc_type.value}",
+                        category="Consistency",
+                        severity=RiskLevel.CRITICAL,
+                        message=f'"{key}" has conflicting values: {" / ".join(shown)}',
+                        suggestion="Verify and unify to a single value",
+                        location="Full text",
+                        snippet=f"{key}: {' / '.join(shown)}",
+                    )
+                )
+        terms: Dict[str, List[str]] = {}
+        for m in _EN_DEFINED_TERM_RE.finditer(text):
+            abbr = m.group(1).upper()
+            definition = re.sub(r"\s+", " ", m.group(2).strip().lower()).rstrip(" .;:")
+            terms.setdefault(abbr, []).append(definition)
+        for abbr, defs in terms.items():
+            unique = list(dict.fromkeys(defs))
+            if len(unique) > 1:
+                findings.append(
+                    AuditFinding(
+                        rule_id=f"CONSIST-{doc_type.value}",
+                        category="Consistency",
+                        severity=RiskLevel.CRITICAL,
+                        message=f'Defined term "{abbr}" has conflicting definitions: '
+                                f"{' / '.join(unique)}",
+                        suggestion="Verify and unify the definition of the term",
+                        location="Full text",
+                        snippet=f'"{abbr}" means {" / ".join(unique)}',
+                    )
+                )
+        return findings
+
 
 class BalanceAuditor:
-    """权利义务对等（合同）：甲方权利词显著多于乙方 → 失衡。"""
+    """权利义务对等（合同）：甲方权利词显著多于乙方 → 失衡。
 
-    def audit(self, text: str, doc_type: DocType) -> List[AuditFinding]:
+    英文版与中文版逻辑对等：Party A / Party B（First/Second Party 别名）
+    的权利表述数之差 ≥ 2 即告警；义务表述只统计、不参与判定。
+    """
+
+    def audit(self, text: str, doc_type: DocType, lang: str = "zh") -> List[AuditFinding]:
         if doc_type != DocType.CONTRACT:
             return []
+        if lang == "en":
+            return self._audit_en(text)
         rights = {"甲方": 0, "乙方": 0}
         for m in _PARTY_RIGHT_RE.finditer(text):
             rights[m.group(1)] += 1
@@ -162,6 +323,35 @@ class BalanceAuditor:
                     suggestion="检查是否存在单方优势条款，补充乙方对等权利",
                     location="全文",
                     snippet=f"甲方有权×{rights['甲方']} / 乙方有权×{rights['乙方']}",
+                )
+            )
+        return findings
+
+    def _audit_en(self, text: str) -> List[AuditFinding]:
+        """英文版：Party A 权利表述显著多于 Party B → 失衡。"""
+        rights = {"A": 0, "B": 0}
+        for m in _PARTY_RIGHT_RE_EN.finditer(text):
+            rights[_party_side_en(m.group(1))] += 1
+        duties = {"A": 0, "B": 0}
+        for m in _PARTY_DUTY_RE_EN.finditer(text):
+            duties[_party_side_en(m.group(1))] += 1
+        imbalance = rights["A"] - rights["B"]
+        findings: List[AuditFinding] = []
+        if imbalance >= 2:
+            findings.append(
+                AuditFinding(
+                    rule_id="BALANCE-CONTRACT",
+                    category="Rights and obligations balance",
+                    severity=RiskLevel.WARNING,
+                    message=(
+                        f"Imbalance of rights and obligations: Party A rights stated "
+                        f"in {rights['A']} places, Party B in {rights['B']} places "
+                        f"(difference {imbalance})"
+                    ),
+                    suggestion="Check for one-sided advantage clauses and add "
+                               "reciprocal rights for Party B",
+                    location="Full text",
+                    snippet=f"Party A rights×{rights['A']} / Party B rights×{rights['B']}",
                 )
             )
         return findings

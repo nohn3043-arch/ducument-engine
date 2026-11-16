@@ -103,7 +103,7 @@ class RuleEngine:
                         severity=severity,
                         message=rule.get("message", f"命中风险词「{kw}」"),
                         suggestion=rule.get("suggestion", ""),
-                        location="全文",
+                        location="Full text" if self.lang == "en" else "全文",
                         snippet=_snippet_at(text, idx, len(kw)),
                         offset=idx,
                     )
@@ -139,7 +139,7 @@ class RuleEngine:
                     severity=severity,
                     message=rule.get("message", f"命中模式「{value}」"),
                     suggestion=rule.get("suggestion", ""),
-                    location="全文",
+                    location="Full text" if self.lang == "en" else "全文",
                     snippet=_snippet_at(text, pos, len(value)),
                     offset=pos,
                 )

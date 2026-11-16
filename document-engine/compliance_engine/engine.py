@@ -67,8 +67,8 @@ class ComplianceEngine:
         self._log("RULE_SCAN", None, f"规则扫描命中：{len(findings)} 条")
 
         findings.extend(CompletenessAuditor().audit(text, doc_type, lang=eff_lang))
-        findings.extend(ConsistencyAuditor().audit(text, doc_type))
-        findings.extend(BalanceAuditor().audit(text, doc_type))
+        findings.extend(ConsistencyAuditor().audit(text, doc_type, lang=eff_lang))
+        findings.extend(BalanceAuditor().audit(text, doc_type, lang=eff_lang))
         findings.extend(FormatAuditor().audit(text, doc_type, lang=eff_lang))
         self._log("DOC_AUDIT", None, f"文档级审计完成：累计 {len(findings)} 条")
 
@@ -92,6 +92,7 @@ class ComplianceEngine:
             trace=list(self.trace),
             responsibility=self.account,
             summary=summary,
+            lang=eff_lang,
         )
 
     # ---------- 内部流程 ----------

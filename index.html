@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>合同审查引擎 · 交互测试</title>
+<style>
+  :root { --ink:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bg:#f9fafb;
+          --card:#ffffff; --accent:#1d4ed8; --pass:#047857; --fail:#b91c1c; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+         color:var(--ink); background:var(--bg); line-height:1.6; }
+  header { background:#111827; color:#f9fafb; padding:28px 20px 22px; }
+  header h1 { margin:0 0 6px; font-size:22px; }
+  header p { margin:4px 0; color:#d1d5db; font-size:14px; max-width:860px; }
+  main { max-width:920px; margin:0 auto; padding:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px;
+          padding:18px 20px; margin-bottom:16px; }
+  .row { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  .field { display:flex; flex-direction:column; gap:4px; font-size:13px; color:var(--muted); }
+  select, textarea, button { font:inherit; }
+  select { padding:7px 10px; border:1px solid var(--line); border-radius:6px; background:#fff; }
+  textarea { width:100%; min-height:260px; padding:12px; border:1px solid var(--line);
+             border-radius:8px; resize:vertical; font-size:14px; line-height:1.7; }
+  button { padding:9px 18px; border:0; border-radius:6px; cursor:pointer; font-size:14px; }
+  button.primary { background:var(--accent); color:#fff; }
+  button.ghost { background:#eef2ff; color:var(--accent); }
+  button:disabled { opacity:.55; cursor:not-allowed; }
+  #status { font-size:13px; color:var(--muted); }
+  #status.ready { color:var(--pass); }
+  #status.error { color:var(--fail); }
+  .score { display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+  .score .num { font-size:44px; font-weight:700; line-height:1; }
+  .verdict { font-size:18px; font-weight:700; }
+  .verdict.pass { color:var(--pass); } .verdict.fail { color:var(--fail); }
+  .pill { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px;
+          background:#f3f4f6; margin-right:6px; }
+  .pill.FATAL { background:#fee2e2; color:#991b1b; }
+  .pill.CRITICAL { background:#ffedd5; color:#9a3412; }
+  .pill.WARNING { background:#fef3c7; color:#92400e; }
+  .finding { border-top:1px solid var(--line); padding:12px 0; }
+  .finding:first-of-type { border-top:0; }
+  .finding .msg { font-weight:600; }
+  .finding .meta { font-size:13px; color:var(--muted); }
+  .finding .snip { font-size:13px; background:#f9fafb; border:1px solid var(--line);
+                   border-radius:6px; padding:8px 10px; margin-top:6px; white-space:pre-wrap;
+                   word-break:break-word; }
+  .finding .sug { font-size:13px; color:#065f46; margin-top:4px; }
+  .tests li.ok { color:var(--pass); } .tests li.bad { color:var(--fail); }
+  footer { max-width:920px; margin:0 auto; padding:0 20px 28px; font-size:13px; color:var(--muted); }
+  code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1 data-i18n="title">合同审查引擎 · 交互测试</h1>
+  <p data-i18n="subtitle">粘贴合同、制度或公文，点“开始审查”，引擎在你的浏览器里跑出评分与逐条结论。</p>
+  <p data-i18n="privacy">🔒 隐私：审查全程在本地浏览器内完成（Pyodide 运行 Python 引擎），文本不会上传到任何服务器。</p>
+</header>
+<main>
+  <div class="card">
+    <div class="row">
+      <div class="field"><span data-i18n="lblType">文书类型</span>
+        <select id="docType">
+          <option value="contract" data-i18n="typeContract">合同</option>
+          <option value="regulation" data-i18n="typeRegulation">制度</option>
+          <option value="official_doc" data-i18n="typeOfficial">公文</option>
+        </select>
+      </div>
+      <div class="field"><span data-i18n="lblLang">审查语言</span>
+        <select id="lang">
+          <option value="auto" data-i18n="langAuto">自动判定</option>
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <div class="field"><span data-i18n="lblUi">界面语言 / UI</span>
+        <select id="uiLang">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+      <span id="status" data-i18n="loading">正在加载引擎（首次需下载 Pyodide，约 10–20 秒）…</span>
+    </div>
+    <p style="margin:14px 0 8px">
+      <button class="ghost" id="sampleZh" data-i18n="sampleZh">填入中文合同示例</button>
+      <button class="ghost" id="sampleEn" data-i18n="sampleEn">填入英文合同示例</button>
+      <button class="ghost" id="sampleLe02" data-i18n="sampleLe02">填入英文 LE02 政策摘要</button>
+    </p>
+    <textarea id="input" data-i18n-ph="placeholder" placeholder="在此粘贴要审查的文本…"></textarea>
+    <p style="margin:12px 0 0">
+      <button class="primary" id="run" disabled data-i18n="run">开始审查</button>
+      <button class="ghost" id="selftest" disabled data-i18n="selftest">跑引擎自检</button>
+      <button class="ghost" id="clear" data-i18n="clear">清空</button>
+    </p>
+  </div>
+
+  <div class="card" id="resultCard" hidden>
+    <div class="score">
+      <div><div class="num" id="scoreNum">–</div><div id="scoreLabel" data-i18n="scoreLabel">评分 / 100</div></div>
+      <div><div class="verdict" id="verdict">–</div><div id="counts"></div></div>
+    </div>
+    <div id="findings" style="margin-top:8px"></div>
+    <p style="margin-top:12px"><button class="ghost" id="downloadJson" data-i18n="downloadJson">下载 JSON 报告</button></p>
+  </div>
+
+  <div class="card" id="testCard" hidden>
+    <h3 style="margin-top:0" data-i18n="testTitle">引擎自检</h3>
+    <ul class="tests" id="testList"></ul>
+  </div>
+</main>
+<footer>
+  <p data-i18n="foot1">引擎：story-engine 仓库 document-engine/compliance_engine（纯 Python 标准库，零第三方依赖；规则库 rules/*.json 与 rules/en/*.json）。判定为决定论式：命中即判定，不输出概率。</p>
+  <p data-i18n="foot2">加载方式：页面通过 fetch 取同仓库的引擎源码与规则 JSON，写入 Pyodide 虚拟文件系统后运行；本页不复制引擎代码，不改动引擎。</p>
+</footer>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

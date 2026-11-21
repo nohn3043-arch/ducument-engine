@@ -83,7 +83,6 @@ flowchart TB
 
 <div style="max-width:880px;margin:0 auto;padding:0 16px">
 
-一个仓库，一个引擎：
 
 | 引擎 | 目标用户 | 模块 | 典型输入 |
 |---|---|---|---|
